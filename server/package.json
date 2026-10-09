@@ -1,0 +1,28 @@
+{
+  "name": "qr-lost-and-found-server",
+  "version": "1.0.0",
+  "description": "TagBack - QR-based lost & found system - Express API backed by Firestore",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "seed:admin": "node scripts/seedAdmin.js",
+    "test:e2e": "node scripts/e2e.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cloudinary": "^2.11.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "firebase-admin": "^12.3.1",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.4.0",
+    "qrcode": "^1.5.4",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  }
+}
