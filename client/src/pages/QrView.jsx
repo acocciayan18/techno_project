@@ -2,6 +2,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Download, FileCode, ExternalLink, ArrowLeft, Trash2 } from 'lucide-react';
 import { api } from '../lib/api.js';
+import { apiUrl } from '../lib/config.js';
 import { useResource, useDataStore } from '../store/dataStore.js';
 import { usePending } from '../lib/useAsync.js';
 import { useConfirm } from '../components/ConfirmDialog.jsx';
@@ -124,11 +125,11 @@ export default function QrView() {
 
       <div className="grid grid-cols-1 gap-4 min-[900px]:grid-cols-2">
         <div className="card text-center flex flex-col items-center gap-4">
-          <img className="w-[220px] max-w-full border border-border rounded-sm bg-white p-2 mx-auto" src={`/api/qr/${qrId}/image.png`} alt={`QR ${qrId}`} />
+          <img className="w-[220px] max-w-full border border-border rounded-sm bg-white p-2 mx-auto" src={apiUrl(`/api/qr/${qrId}/image.png`)} alt={`QR ${qrId}`} />
           <p className="text-muted text-[.85rem] break-all">{url}</p>
           <div className="flex gap-[.6rem] flex-wrap items-center justify-center">
-            <a className="btn btn-sm" href={`/api/qr/${qrId}/image.png`} download={`${qrId}.png`}><Download size={16} strokeWidth={2.5} /> PNG</a>
-            <a className="btn btn-sm" href={`/api/qr/${qrId}/image.svg`} download={`${qrId}.svg`}><FileCode size={16} strokeWidth={2.5} /> SVG</a>
+            <a className="btn btn-sm" href={apiUrl(`/api/qr/${qrId}/image.png`)} download={`${qrId}.png`}><Download size={16} strokeWidth={2.5} /> PNG</a>
+            <a className="btn btn-sm" href={apiUrl(`/api/qr/${qrId}/image.svg`)} download={`${qrId}.svg`}><FileCode size={16} strokeWidth={2.5} /> SVG</a>
             <a className="btn btn-sm" href={url} target="_blank" rel="noreferrer"><ExternalLink size={16} strokeWidth={2.5} /> Open public page</a>
           </div>
         </div>

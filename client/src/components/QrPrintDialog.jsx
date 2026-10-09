@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Printer, AlertTriangle } from 'lucide-react';
 import { tapProps } from './motion.jsx';
 import Spinner from './Spinner.jsx';
+import { apiUrl } from '../lib/config.js';
 
 // Physical paper sizes in millimetres (portrait w × h).
 const PAPERS = {
@@ -12,7 +13,7 @@ const PAPERS = {
   LEGAL: { label: 'Legal', w: 215.9, h: 355.6 },
 };
 const PX_PER_MM = 96 / 25.4; // CSS reference pixels per millimetre
-const svgUrl = (qrId) => `/api/qr/${qrId}/image.svg`; // vector = crisp at any print size
+const svgUrl = (qrId) => apiUrl(`/api/qr/${qrId}/image.svg`); // vector = crisp at any print size
 
 const clampNum = (v, min, max) => {
   const n = Number(v);

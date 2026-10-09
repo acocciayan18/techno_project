@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Plus, QrCode, Flag, Check, Package, Boxes, Users, List, Clock, ChevronRight } from 'lucide-react';
 import { api } from '../lib/api.js';
+import { assetUrl } from '../lib/config.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useResource } from '../store/dataStore.js';
 import { usePending } from '../lib/useAsync.js';
@@ -245,7 +246,7 @@ export default function Dashboard() {
                 </span>
               </div>
               {item?.photoUrl ? (
-                <img className="w-full h-[150px] object-cover rounded-sm bg-surface border border-border" src={item.photoUrl} alt="" />
+                <img className="w-full h-[150px] object-cover rounded-sm bg-surface border border-border" src={assetUrl(item.photoUrl)} alt="" />
               ) : (
                 <div className="w-full h-[150px] rounded-sm border border-border grid place-items-center text-muted-2"
                      style={{ background: 'linear-gradient(135deg, rgb(var(--surface-3)), rgb(var(--surface)))' }}>

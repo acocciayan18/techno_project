@@ -1,3 +1,5 @@
+import { API_BASE } from './config.js';
+
 const TOKEN_KEY = 'lf_token';
 
 export function getToken() {
@@ -31,7 +33,7 @@ async function request(method, path, { body, auth = true, form, signal } = {}) {
   }
   let res;
   try {
-    res = await fetch('/api' + path, { method, headers, body: payload, signal });
+    res = await fetch(API_BASE + '/api' + path, { method, headers, body: payload, signal });
   } catch (e) {
     // Abort (user cancel) and network failures (offline) both land here.
     if (e.name === 'AbortError') throw Object.assign(new Error('Cancelled'), { aborted: true, status: 'ABORT' });
@@ -64,7 +66,7 @@ async function request(method, path, { body, auth = true, form, signal } = {}) {
 function uploadWithProgress(path, form, { onProgress, signal } = {}) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', '/api' + path);
+    xhr.open('POST', API_BASE + '/api' + path);
     const t = getToken();
     if (t) xhr.setRequestHeader('Authorization', `Bearer ${t}`);
 

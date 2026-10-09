@@ -2,9 +2,10 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { validate } from '../middleware/validate.js';
 import { requireAuth } from '../middleware/auth.js';
+import { rateLimit } from '../middleware/rateLimit.js';
 import { signToken } from '../lib/jwt.js';
 import { sendPasswordReset } from '../lib/mailer.js';
-import { AUTH, TEXT_LIMITS } from '../lib/constants.js';
+import { AUTH, TEXT_LIMITS, RATE_LIMIT } from '../lib/constants.js';
 import {
   createUser,
   findByUsername,
@@ -22,6 +23,21 @@ import {
 } from '../services/users.js';
 
 const router = Router();
+
+// Per-IP throttles on the unauthenticated auth surface. These are abuse backstops
+// layered ON TOP of the real guarantees: login has a per-account lockout
+// (services/users.js) that an IP limit can't replace, and both login and
+// forgot-password stay enumeration-safe (identical responses). Sized so a normal
+// person never trips them; they stop scripted spray, mass sign-up and email
+// bombing. Keyed by IP, so correct only with `trust proxy` set in prod.
+const loginLimiter = rateLimit({ ...RATE_LIMIT.LOGIN, bucket: 'login', keyBy: 'ip' });
+const registerLimiter = rateLimit({ ...RATE_LIMIT.REGISTER, bucket: 'register', keyBy: 'ip' });
+const forgotLimiter = rateLimit({ ...RATE_LIMIT.FORGOT, bucket: 'forgot', keyBy: 'ip' });
+const resetLimiter = rateLimit({ ...RATE_LIMIT.RESET, bucket: 'reset', keyBy: 'ip' });
+// Per-user backstop on the authed self endpoints (/me, /me/settings). These sit on
+// the auth router, which has no global per-account cap like the owner/admin routers,
+// so this stops a hammer on the settings write / profile read. Keyed per account.
+const meLimiter = rateLimit({ ...RATE_LIMIT.ME, bucket: 'me', keyBy: 'user' });
 
 // Shared password rule: 8+ chars with at least one letter and one number.
 const password = z
@@ -61,7 +77,7 @@ const loginSchema = z.object({
 // response can't be used to probe which usernames exist.
 const BAD_CREDS = 'Invalid username or password';
 
-router.post('/register', validate(registerSchema), async (req, res, next) => {
+router.post('/register', registerLimiter, validate(registerSchema), async (req, res, next) => {
   try {
     const { name, username, password, recoveryEmail, acceptedTerms } = req.body;
     if (await findByUsername(username)) {
@@ -75,7 +91,7 @@ router.post('/register', validate(registerSchema), async (req, res, next) => {
   }
 });
 
-router.post('/login', validate(loginSchema), async (req, res, next) => {
+router.post('/login', loginLimiter, validate(loginSchema), async (req, res, next) => {
   try {
     const { username, password } = req.body;
     const user = await findByUsername(username);
@@ -109,7 +125,7 @@ router.post('/login', validate(loginSchema), async (req, res, next) => {
   }
 });
 
-router.get('/me', requireAuth, (req, res) => {
+router.get('/me', requireAuth, meLimiter, (req, res) => {
   res.json({ user: req.user });
 });
 
@@ -122,7 +138,7 @@ const settingsSchema = z
   })
   .refine((d) => Object.keys(d).length > 0, { message: 'No settings provided' });
 
-router.put('/me/settings', requireAuth, validate(settingsSchema), async (req, res, next) => {
+router.put('/me/settings', requireAuth, meLimiter, validate(settingsSchema), async (req, res, next) => {
   try {
     const user = await updateSettings(req.user.uid, req.body);
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -139,7 +155,7 @@ router.put('/me/settings', requireAuth, validate(settingsSchema), async (req, re
 const forgotSchema = z.object({ username: z.string().trim().toLowerCase().min(1) });
 const GENERIC_FORGOT = 'If an account with a recovery email exists, a reset link has been sent.';
 
-router.post('/forgot-password', validate(forgotSchema), async (req, res, next) => {
+router.post('/forgot-password', forgotLimiter, validate(forgotSchema), async (req, res, next) => {
   try {
     const user = await findByUsername(req.body.username);
     if (user && user.recoveryEmail && !user.disabled) {
@@ -166,7 +182,7 @@ const resetSchema = z
     path: ['confirmPassword'],
   });
 
-router.post('/reset-password', validate(resetSchema), async (req, res, next) => {
+router.post('/reset-password', resetLimiter, validate(resetSchema), async (req, res, next) => {
   try {
     const user = await findByResetToken(req.body.token);
     if (!user) return res.status(400).json({ error: 'This reset link is invalid or has expired.' });

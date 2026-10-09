@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { AlertCircle, ShieldCheck, Hand, CheckCircle2, ArrowDown } from 'lucide-react';
+import { AlertCircle, ShieldCheck, Hand, CheckCircle2, ArrowDown, PackageCheck, Star } from 'lucide-react';
 import { getContactType, contactHref, contactDisplay } from '../lib/contactTypes.jsx';
 import { api } from '../lib/api.js';
+import { assetUrl } from '../lib/config.js';
 import { useConfirm } from './ConfirmDialog.jsx';
 import { notify } from '../lib/toast.jsx';
 import Spinner from './Spinner.jsx';
@@ -14,8 +15,8 @@ import { tapProps } from './motion.jsx';
 //
 // Props:
 //   customization: { template, accentColor, logoUrl, pageTitle, finderMessage, contactButtonText }
-//   item: { name, description, category, photoUrl }
-//   contact: { fields: [{ type, value }] }   (already privacy-filtered by the server)
+//   item: { name, description, category, recoveryInstructions, photoUrl }
+//   contact: { fields: [{ type, value }], preferredMethod }   (already privacy-filtered by the server)
 //   lost: boolean   (show the amber "reported lost" status + finder message)
 //   showContact: boolean   (render the contact block; defaults to `lost`, but an
 //     owner with "Always show information" on sees it while not lost too)
@@ -50,7 +51,7 @@ export default function ItemPageTemplate({ qrId, customization = {}, item = {}, 
             <div className="relative rounded-lg overflow-hidden border border-border bg-surface shadow-brutal">
               <img
                 className="w-full object-cover block aspect-square sm:aspect-[4/3] lg:aspect-square"
-                src={item.photoUrl}
+                src={assetUrl(item.photoUrl)}
                 alt={item.name || 'Item'}
               />
               {item.category && (
@@ -82,7 +83,7 @@ export default function ItemPageTemplate({ qrId, customization = {}, item = {}, 
               {c.logoUrl && (
                 <img
                   className="w-11 h-11 object-cover rounded-sm border border-border shadow-brutal-sm flex-none"
-                  src={c.logoUrl}
+                  src={assetUrl(c.logoUrl)}
                   alt=""
                 />
               )}
@@ -113,6 +114,21 @@ export default function ItemPageTemplate({ qrId, customization = {}, item = {}, 
             </motion.p>
           )}
 
+          {item.recoveryInstructions && (
+            <motion.div
+              variants={rise}
+              className="mt-5 rounded-sm border border-border bg-surface/60 px-4 py-3.5"
+            >
+              <h2 className="flex items-center gap-2 font-display font-bold text-[1rem] m-0 break-words">
+                <PackageCheck size={18} strokeWidth={2.4} style={{ color: accent }} className="flex-none" />
+                How to return it
+              </h2>
+              <p className="text-ink text-[.95rem] leading-relaxed mt-1.5 mb-0 break-words whitespace-pre-wrap">
+                {item.recoveryInstructions}
+              </p>
+            </motion.div>
+          )}
+
           {lost && c.finderMessage && (
             <motion.blockquote
               variants={rise}
@@ -139,6 +155,14 @@ export default function ItemPageTemplate({ qrId, customization = {}, item = {}, 
                   <p className="text-muted text-[.88rem] mb-3.5">
                     Found this item? Reach the owner directly using the details below.
                   </p>
+                  {contact.preferredMethod && (
+                    <div className="flex flex-wrap gap-2 mb-3.5">
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface/70 px-3 py-1.5 text-[.82rem] font-semibold">
+                        <Star size={14} strokeWidth={2.4} style={{ color: accent }} className="flex-none" />
+                        Prefers {getContactType(contact.preferredMethod).label}
+                      </span>
+                    </div>
+                  )}
                   <div className="grid gap-2.5 sm:grid-cols-2">
                     {contactFields.map((f, i) => {
                       const t = getContactType(f.type);

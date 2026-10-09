@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { UserPlus, User, AtSign, Mail } from 'lucide-react';
+import { User, AtSign, Mail } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { tapProps } from '../components/motion.jsx';
 import Spinner from '../components/Spinner.jsx';
@@ -151,7 +151,7 @@ export default function Register() {
         <FieldError msg={errors.acceptedTerms} />
 
         <motion.button className="btn btn-primary btn-lg w-full" disabled={busy} {...tapProps}>
-          {busy ? <Spinner size={18} /> : <UserPlus size={18} strokeWidth={2.5} />}
+          {busy && <Spinner size={18} />}
           {busy ? 'Creating…' : 'Create account'}
         </motion.button>
       </form>

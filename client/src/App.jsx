@@ -7,6 +7,7 @@ import { useConfirm } from './components/ConfirmDialog.jsx';
 import { Icon, useNavItems, usePendingRequests, NavBadge, PRIMARY_COUNT } from './components/nav.jsx';
 import NotificationBell from './components/NotificationBell.jsx';
 import { useShowOnScroll } from './lib/useScrollDirection.js';
+import { useRealtime } from './lib/realtime.js';
 import { CenterSpinner } from './components/Spinner.jsx';
 import Landing from './pages/Landing.jsx';
 import Login from './pages/Login.jsx';
@@ -231,6 +232,9 @@ function AppToaster() {
 
 export default function App() {
   const { user } = useAuth();
+  // One app-wide real-time connection; no-op while signed out. Live updates for
+  // notifications, QR status, activation requests and dashboards (see lib/realtime.js).
+  useRealtime();
   return (
     <Chrome>
       <AppToaster />

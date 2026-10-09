@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Send, User, CheckCircle2 } from 'lucide-react';
+import { User, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { tapProps } from '../components/motion.jsx';
 import Spinner from '../components/Spinner.jsx';
@@ -60,11 +60,11 @@ export default function ForgotPassword() {
           </div>
         </label>
         <motion.button className="btn btn-primary btn-lg w-full" disabled={busy} {...tapProps}>
-          {busy ? <Spinner size={18} /> : <Send size={18} strokeWidth={2.5} />}
+          {busy && <Spinner size={18} />}
           {busy ? 'Sending…' : 'Send reset link'}
         </motion.button>
       </form>
-      <p className="text-center text-muted mt-4 text-sm"><Link to="/login">Back to log in</Link></p>
+      <p className="text-center text-muted mt-5 text-sm"><Link to="/login">Back to log in</Link></p>
     </div>
   );
 }

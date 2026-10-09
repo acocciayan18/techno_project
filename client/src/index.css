@@ -278,7 +278,7 @@
   .chip-toggle-active:hover { @apply bg-primary-hover text-primary-ink; }
 
   /* Forms */
-  .form-card { @apply card; padding: 1.65rem; max-width: 520px; margin: 0 auto; }
+  .form-card { @apply card; padding: 1.65rem; width: 100%; max-width: 520px; margin: 0 auto; }
 
   /* Auth header: title + one supporting line, centered for a clean entry point. */
   .form-head { @apply text-center; margin-bottom: 1.5rem; }

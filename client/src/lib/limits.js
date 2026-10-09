@@ -8,6 +8,7 @@ export const LIMITS = {
   itemName: 120,
   itemDescription: 1000,
   itemCategory: 60,
+  recoveryInstructions: 500,
   pageTitle: 80,
   finderMessage: 400,
   contactButtonText: 40,

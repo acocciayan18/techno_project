@@ -3,17 +3,22 @@ import { z } from 'zod';
 import { validate } from '../middleware/validate.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/admin.js';
+import { rateLimit } from '../middleware/rateLimit.js';
 import { normalizeQrId } from '../lib/ids.js';
-import { QR_STATUS, ITEM_STATUS } from '../lib/constants.js';
+import { QR_STATUS, ITEM_STATUS, RATE_LIMIT } from '../lib/constants.js';
 import * as qrService from '../services/qrcodes.js';
 import * as itemService from '../services/items.js';
 import * as userService from '../services/users.js';
 import * as customService from '../services/customizations.js';
 import * as contactService from '../services/contacts.js';
 import * as notificationService from '../services/notifications.js';
+import { publishToUser, publishToAdmins, kickUser } from '../lib/events.js';
 
 const router = Router();
 router.use(requireAuth, requireAdmin);
+// Per-admin backstop against runaway loops on the admin surface (same family as
+// the owner one). Admin actions are already gated by role; this only caps volume.
+router.use(rateLimit({ ...RATE_LIMIT.API, bucket: 'admin-api', keyBy: 'user' }));
 
 // Pre-register a batch of permanent QR ids (inventory). They start AVAILABLE,
 // each with a one-time activation code. The plaintext codes are returned HERE
@@ -23,6 +28,7 @@ const genSchema = z.object({ count: z.coerce.number().int().min(1).max(500) });
 router.post('/qr/generate', validate(genSchema), async (req, res, next) => {
   try {
     const pairs = await qrService.generateBatch(req.body.count); // [{ qrId, secret }]
+    publishToAdmins(['admin/qrcodes', 'admin/stats']); // other admins see new inventory
     res.status(201).json({
       created: pairs.map((p) => p.qrId),
       secrets: pairs, // { qrId, secret } — shown once for printing, never persisted in clear
@@ -110,8 +116,11 @@ router.get('/qrcodes/:qrId', async (req, res, next) => {
 router.put('/qr/:qrId/disable', async (req, res, next) => {
   try {
     const qrId = normalizeQrId(req.params.qrId);
-    if (!qrId || !(await qrService.getQr(qrId))) return res.status(404).json({ error: 'QR not found' });
+    const qr = qrId ? await qrService.getQr(qrId) : null;
+    if (!qr) return res.status(404).json({ error: 'QR not found' });
     await qrService.setStatus(qrId, QR_STATUS.DISABLED);
+    publishToAdmins(['admin/qrcodes', 'admin/stats']);
+    if (qr.ownerUid) publishToUser(qr.ownerUid, ['owner/qrcodes', 'qr']);
     res.json({ qrId, status: QR_STATUS.DISABLED });
   } catch (e) {
     next(e);
@@ -124,7 +133,8 @@ router.put('/qr/:qrId/disable', async (req, res, next) => {
 router.delete('/qr/:qrId', async (req, res, next) => {
   try {
     const qrId = normalizeQrId(req.params.qrId);
-    if (!qrId || !(await qrService.getQr(qrId))) return res.status(404).json({ error: 'QR not found' });
+    const qr = qrId ? await qrService.getQr(qrId) : null;
+    if (!qr) return res.status(404).json({ error: 'QR not found' });
     await Promise.all([
       itemService.removeItem(qrId),
       customService.removeCustomization(qrId),
@@ -132,6 +142,8 @@ router.delete('/qr/:qrId', async (req, res, next) => {
       notificationService.removeByQr(qrId),
     ]);
     await qrService.deleteQr(qrId);
+    publishToAdmins(['admin/qrcodes', 'admin/stats', 'admin/items']);
+    if (qr.ownerUid) publishToUser(qr.ownerUid, ['owner/qrcodes']);
     res.json({ qrId, deleted: true });
   } catch (e) {
     next(e);
@@ -146,6 +158,8 @@ router.put('/qr/:qrId/enable', async (req, res, next) => {
     if (!qr) return res.status(404).json({ error: 'QR not found' });
     const status = qr.ownerUid ? QR_STATUS.ACTIVATED : QR_STATUS.AVAILABLE;
     await qrService.setStatus(qrId, status);
+    publishToAdmins(['admin/qrcodes', 'admin/stats']);
+    if (qr.ownerUid) publishToUser(qr.ownerUid, ['owner/qrcodes', 'qr']);
     res.json({ qrId, status });
   } catch (e) {
     next(e);
@@ -193,6 +207,10 @@ router.put('/qr/:qrId/approve', async (req, res, next) => {
       const [status, msg] = map[result.reason] || [409, 'Could not approve claim'];
       return res.status(status).json({ error: msg, reason: result.reason });
     }
+    // Approved: the claimant now owns it (their dashboard + claims update live),
+    // and the admin queue / inventory / stats drop the pending row.
+    publishToUser(result.ownerUid, ['owner/qrcodes', 'owner/claims']);
+    publishToAdmins(['admin/claims', 'admin/qrcodes', 'admin/stats']);
     res.json({ qrId, status: QR_STATUS.ACTIVATED, ownerUid: result.ownerUid });
   } catch (e) {
     next(e);
@@ -204,12 +222,17 @@ router.put('/qr/:qrId/reject', async (req, res, next) => {
   try {
     const qrId = normalizeQrId(req.params.qrId);
     if (!qrId) return res.status(404).json({ error: 'QR not found' });
+    // Capture the claimant before the reject clears the claim, so we can nudge them.
+    const pre = await qrService.getQr(qrId);
+    const claimantUid = pre?.claim?.uid || null;
     const result = await qrService.rejectClaim(qrId, req.user.uid);
     if (!result.ok) {
       const map = { NOT_FOUND: [404, 'QR not found'], NOT_PENDING: [409, 'This QR has no pending claim to reject'] };
       const [status, msg] = map[result.reason] || [409, 'Could not reject claim'];
       return res.status(status).json({ error: msg, reason: result.reason });
     }
+    if (claimantUid) publishToUser(claimantUid, ['owner/claims']);
+    publishToAdmins(['admin/claims', 'admin/qrcodes', 'admin/stats']);
     res.json({ qrId, status: QR_STATUS.AVAILABLE });
   } catch (e) {
     next(e);
@@ -233,6 +256,10 @@ async function setUserDisabled(req, res, next, disabled) {
     const target = await userService.findByUid(uid);
     if (!target) return res.status(404).json({ error: 'User not found' });
     await userService.setDisabled(uid, disabled);
+    // Disabling kicks the account's live sessions immediately (not just on its next
+    // REST call); both directions refresh other admins' user table.
+    if (disabled) kickUser(uid);
+    publishToAdmins(['admin/users']);
     res.json({ uid, disabled });
   } catch (e) {
     next(e);

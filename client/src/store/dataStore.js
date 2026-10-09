@@ -17,11 +17,13 @@ export const useDataStore = create((set, get) => ({
     const prev = get().cache[key];
     const hasData = !!prev?.loaded;
     set((s) => ({
-      cache: { ...s.cache, [key]: { ...(prev || {}), loading: !hasData, error: hasData ? '' : (prev?.error || '') } },
+      // Stash the fetcher so real-time nudges can revalidate a key without the
+      // component having to be mounted (see revalidate / revalidateMatching).
+      cache: { ...s.cache, [key]: { ...(prev || {}), fetcher, loading: !hasData, error: hasData ? '' : (prev?.error || '') } },
     }));
     try {
       const data = await fetcher();
-      set((s) => ({ cache: { ...s.cache, [key]: { data, error: '', loading: false, loaded: true, ts: Date.now() } } }));
+      set((s) => ({ cache: { ...s.cache, [key]: { data, fetcher, error: '', loading: false, loaded: true, ts: Date.now() } } }));
       return data;
     } catch (e) {
       set((s) => {
@@ -29,6 +31,28 @@ export const useDataStore = create((set, get) => ({
         return { cache: { ...s.cache, [key]: { ...cur, error: e.message, loading: false } } };
       });
       throw e;
+    }
+  },
+
+  // Re-run a cached key's last fetcher in place (background refresh). No-op if the
+  // key was never fetched — nothing is mounted/interested in it yet.
+  revalidate(key) {
+    const entry = get().cache[key];
+    if (entry?.fetcher) get().fetch(key, entry.fetcher);
+  },
+
+  // Revalidate every cached key whose name starts with `prefix`. Lets a single
+  // real-time resource name ('owner/qrcodes', 'qr', …) refresh all matching
+  // surfaces at once (e.g. 'qr/QR-1', 'qr/QR-2'). Only touches keys that already
+  // have a fetcher, so it never fires requests for pages no one is viewing.
+  revalidateMatching(prefix) {
+    const { cache, fetch } = get();
+    for (const [key, entry] of Object.entries(cache)) {
+      // Match on a path segment boundary so 'qr' hits 'qr/QR-1' and 'admin/qrcodes'
+      // hits 'admin/qrcodes/all', without 'qr' accidentally catching other keys.
+      if (entry?.fetcher && (key === prefix || key.startsWith(prefix + '/'))) {
+        fetch(key, entry.fetcher);
+      }
     }
   },
 

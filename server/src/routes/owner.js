@@ -15,9 +15,22 @@ import * as itemService from '../services/items.js';
 import * as customService from '../services/customizations.js';
 import * as contactService from '../services/contacts.js';
 import * as notificationService from '../services/notifications.js';
+import { publishToUser, publishToAdmins } from '../lib/events.js';
 
 const router = Router();
 router.use(requireAuth);
+// Global per-user backstop across every owner action (edits, status flips, reads).
+// Covers "rapid clicking" / repeated editing and runaway client loops without
+// touching the dedicated, tighter limits below. Mounted after requireAuth so the
+// key is the account, not the connection — new tabs / direct API calls all share it.
+router.use(rateLimit({ ...RATE_LIMIT.API, bucket: 'owner-api', keyBy: 'user' }));
+
+// Activation + claim-request limiters (per user). The authoritative brute-force
+// guard for codes is the per-QR lockout in qrcodes.activate(); this per-user cap
+// stops someone iterating activation codes across MANY different QR ids (which the
+// per-QR counter wouldn't catch) and stops claim-request flooding of the admin queue.
+const activateLimiter = rateLimit({ ...RATE_LIMIT.ACTIVATE, bucket: 'activate', keyBy: 'user' });
+const claimLimiter = rateLimit({ ...RATE_LIMIT.CLAIM, bucket: 'claim', keyBy: 'user' });
 
 // Buffer uploads in memory and hand the bytes to the storage adapter, which
 // decides where they live (disk in dev, Cloud Storage in prod). The mimetype
@@ -75,7 +88,7 @@ const activateSchema = z.object({
   qrId: z.string().min(1),
   secret: z.string().min(1, 'Enter the activation code printed with your product'),
 });
-router.post('/qr/activate', validate(activateSchema), async (req, res, next) => {
+router.post('/qr/activate', activateLimiter, validate(activateSchema), async (req, res, next) => {
   try {
     const qrId = normalizeQrId(req.body.qrId);
     if (!qrId) return res.status(400).json({ error: 'Invalid QR identifier' });
@@ -84,6 +97,11 @@ router.post('/qr/activate', validate(activateSchema), async (req, res, next) => 
       return res.status(422).json({ error: 'That activation code is not valid', reason: 'BAD_SECRET' });
     }
     const result = await qrService.activate(qrId, req.user.uid, secret);
+    if (result.ok) {
+      // New ownership: refresh this user's other devices + every admin's inventory/stats.
+      publishToUser(req.user.uid, ['owner/qrcodes', 'owner/claims']);
+      publishToAdmins(['admin/qrcodes', 'admin/stats']);
+    }
     if (!result.ok) {
       const map = {
         NOT_FOUND: [404, 'QR code does not exist'],
@@ -110,11 +128,16 @@ const claimSchema = z.object({
   qrId: z.string().min(1),
   note: z.string().trim().max(TEXT_LIMITS.CLAIM_NOTE).optional().default(''),
 });
-router.post('/qr/claim-request', validate(claimSchema), async (req, res, next) => {
+router.post('/qr/claim-request', claimLimiter, validate(claimSchema), async (req, res, next) => {
   try {
     const qrId = normalizeQrId(req.body.qrId);
     if (!qrId) return res.status(400).json({ error: 'Invalid QR identifier' });
     const result = await qrService.requestClaim(qrId, req.user.uid, req.body.note);
+    if (result.ok) {
+      // A new request appears in the admin review queue in real time.
+      publishToUser(req.user.uid, ['owner/claims']);
+      publishToAdmins(['admin/claims', 'admin/qrcodes', 'admin/stats']);
+    }
     if (!result.ok) {
       const map = {
         NOT_FOUND: [404, 'QR code does not exist'],
@@ -180,6 +203,7 @@ router.get('/notifications', async (req, res, next) => {
 router.put('/notifications/read-all', async (req, res, next) => {
   try {
     const result = await notificationService.markAllRead(req.user.uid);
+    publishToUser(req.user.uid, ['owner/notifications']); // keep other devices' badge in sync
     res.json({ ok: true, count: result.count });
   } catch (e) {
     next(e);
@@ -197,6 +221,7 @@ router.put('/notifications/:id/read', async (req, res, next) => {
       const [status, msg] = map[result.reason] || [409, 'Could not update notification'];
       return res.status(status).json({ error: msg });
     }
+    publishToUser(req.user.uid, ['owner/notifications']); // other devices' badge in sync
     res.json({ ok: true });
   } catch (e) {
     next(e);
@@ -268,6 +293,8 @@ router.delete('/qr/:qrId', async (req, res, next) => {
       notificationService.removeByQr(qr.qrId),
     ]).catch((e) => console.error('[owner] cleanup after QR release failed', e));
 
+    publishToUser(req.user.uid, ['owner/qrcodes']);
+    publishToAdmins(['admin/qrcodes', 'admin/stats', 'admin/items']);
     res.json({ qrId: qr.qrId, deleted: true });
   } catch (e) {
     next(e);
@@ -290,12 +317,15 @@ const itemSchema = z.object({
   name: z.string().trim().min(1, 'Item name is required').max(TEXT_LIMITS.ITEM_NAME),
   description: z.string().trim().max(TEXT_LIMITS.ITEM_DESCRIPTION).optional().default(''),
   category: z.string().trim().max(TEXT_LIMITS.ITEM_CATEGORY).optional().default(''),
+  recoveryInstructions: z.string().trim().max(TEXT_LIMITS.RECOVERY_INSTRUCTIONS).optional().default(''),
 });
 router.put('/items/:qrId', validate(itemSchema), async (req, res, next) => {
   try {
     const qr = await loadOwnedQr(req, res);
     if (!qr) return;
     const item = await itemService.upsertItem(qr.qrId, req.user.uid, req.body);
+    publishToUser(req.user.uid, ['owner/qrcodes', 'qr']); // other devices see the edit
+    publishToAdmins(['admin/items']);
     res.json({ item });
   } catch (e) {
     next(e);
@@ -356,6 +386,7 @@ router.post('/items/:qrId/photo', photoLimiter, uploadPhoto, async (req, res, ne
     if (!qr) return;
     if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
     const { item, deduped } = await applyNewPhoto(qr, req.user.uid, req.file.buffer);
+    if (!deduped) publishToUser(req.user.uid, ['owner/qrcodes', 'qr']);
     res.json({ item, storageMode, deduped });
   } catch (e) {
     next(e);
@@ -372,6 +403,7 @@ router.post('/items/:qrId/photo-url', photoLimiter, validate(photoUrlSchema), as
     if (!qr) return;
     const { buffer } = await downloadImage(req.body.url);
     const { item, deduped } = await applyNewPhoto(qr, req.user.uid, buffer);
+    if (!deduped) publishToUser(req.user.uid, ['owner/qrcodes', 'qr']);
     res.json({ item, storageMode, deduped });
   } catch (e) {
     next(e);
@@ -388,6 +420,10 @@ router.put('/items/:qrId/status', validate(statusSchema), async (req, res, next)
     const existing = await itemService.getItem(qr.qrId);
     if (!existing) return res.status(400).json({ error: 'Register an item before changing its status' });
     await itemService.setStatus(qr.qrId, req.body.status);
+    // Status (ACTIVE/LOST/RECOVERED) drives the dashboard, the admin item view, and
+    // the public finder page — nudge this user's devices and the admin surfaces.
+    publishToUser(req.user.uid, ['owner/qrcodes', 'qr']);
+    publishToAdmins(['admin/items', 'admin/stats']);
     res.json({ qrId: qr.qrId, status: req.body.status });
   } catch (e) {
     next(e);
@@ -444,6 +480,10 @@ const contactSchema = z.object({
     value: z.string().trim().min(1).max(TEXT_LIMITS.CONTACT_VALUE),
     show: z.boolean().optional(),
   })).min(1, 'Add at least one contact field').max(20),
+  // Owner contact preference. preferredMethod names a field type (e.g. 'phone')
+  // the owner would rather be reached on. Optional and only surfaced on the public
+  // page under the same privacy gate as the contact fields themselves.
+  preferredMethod: z.string().trim().max(TEXT_LIMITS.CONTACT_TYPE).optional().default(''),
 });
 router.put('/contact/:qrId', validate(contactSchema), async (req, res, next) => {
   try {

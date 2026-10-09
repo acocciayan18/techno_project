@@ -8,15 +8,19 @@ const col = () => db.collection(COL.CONTACTS);
 // Legacy docs stored fixed email/phone/link + showX flags; migrate() folds those
 // into the fields shape on read so old QRs keep working with no data backfill.
 function migrate(data) {
-  if (!data) return { fields: [] };
+  if (!data) return { fields: [], preferredMethod: '' };
   if (Array.isArray(data.fields)) {
-    return { ...data, fields: data.fields.filter((f) => f && f.value) };
+    return {
+      ...data,
+      fields: data.fields.filter((f) => f && f.value),
+      preferredMethod: data.preferredMethod || '',
+    };
   }
   const fields = [];
   if (data.email) fields.push({ type: 'email', value: data.email, show: !!data.showEmail });
   if (data.phone) fields.push({ type: 'phone', value: data.phone, show: !!data.showPhone });
   if (data.link) fields.push({ type: 'link', value: data.link, show: !!data.showLink });
-  return { fields };
+  return { fields, preferredMethod: '' };
 }
 
 export async function getContact(qrId) {
@@ -30,6 +34,7 @@ export async function saveContact(qrId, ownerUid, patch) {
     .map((f) => ({ type: f.type, value: f.value.trim(), show: !!f.show }));
   const data = {
     fields,
+    preferredMethod: typeof patch.preferredMethod === 'string' ? patch.preferredMethod.trim() : '',
     ownerUid,
     updatedAt: new Date().toISOString(),
   };
@@ -48,5 +53,11 @@ export function publicContact(contact) {
   const fields = (contact.fields || [])
     .filter((f) => f.show && f.value)
     .map((f) => ({ type: f.type, value: f.value }));
-  return { fields };
+  // Only surface the preferred method when a matching PUBLIC field actually exists —
+  // never hint at a channel the owner chose to keep private.
+  const preferredMethod =
+    contact.preferredMethod && fields.some((f) => f.type === contact.preferredMethod)
+      ? contact.preferredMethod
+      : '';
+  return { fields, preferredMethod };
 }

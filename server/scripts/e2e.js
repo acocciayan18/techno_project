@@ -137,9 +137,18 @@ try {
   // TEST 3: register item
   const item = await api('PUT', `/api/owner/items/${qr1}`, {
     token: ayan,
-    body: { name: 'Black Stainless Tumbler', description: '750ml black stainless steel tumbler.', category: 'Drinkware' },
+    body: { name: 'Black Stainless Tumbler', description: '750ml black stainless steel tumbler.', category: 'Drinkware', recoveryInstructions: 'Drop at the Main St cafe front desk, or call to arrange pickup.' },
   });
   check('TEST 3: registers Black Stainless Tumbler', item.status === 200 && item.json.item.name === 'Black Stainless Tumbler');
+  check('TEST 3b: recovery instructions stored', item.json.item.recoveryInstructions === 'Drop at the Main St cafe front desk, or call to arrange pickup.', JSON.stringify(item.json.item));
+
+  // Backend validation of the new free-text fields (client limits are a UX hint;
+  // the server is the hard ceiling). Over-length recovery instructions rejected.
+  const longRecovery = await api('PUT', `/api/owner/items/${qr1}`, {
+    token: ayan,
+    body: { name: 'Black Stainless Tumbler', recoveryInstructions: 'x'.repeat(501) },
+  });
+  check('TEST 3c: over-length recovery instructions rejected (400)', longRecovery.status === 400, JSON.stringify(longRecovery.json));
 
   // ---- Photo workflow: upload → display → replace → validate → delete ----
   // Isolated on qr4 (unused elsewhere) so the admin delete at the end is safe.
@@ -232,16 +241,24 @@ try {
   check('TEST 4: customizes public page', custom.status === 200 && custom.json.customization.template === 'colorful');
   const contact = await api('PUT', `/api/owner/contact/${qr1}`, {
     token: ayan,
-    body: { fields: [
-      { type: 'email', value: 'ayan@test.local', show: true },
-      { type: 'phone', value: '0917-000-0000', show: false },
-    ] },
+    body: {
+      fields: [
+        { type: 'email', value: 'ayan@test.local', show: true },
+        { type: 'phone', value: '0917-000-0000', show: false },
+      ],
+      preferredMethod: 'email',
+    },
   });
   check(
     'TEST 4b: saves contact settings',
     contact.status === 200 && contact.json.contact.fields.length === 2 &&
       contact.json.contact.fields[0].show === true,
     JSON.stringify(contact.json),
+  );
+  check(
+    'TEST 4c: saves contact preference',
+    contact.json.contact.preferredMethod === 'email',
+    JSON.stringify(contact.json.contact),
   );
 
   // TEST 5: finder views while ACTIVE -> no private contact
@@ -258,6 +275,7 @@ try {
   check('TEST 7: same URL now shows LOST', lostView.json.state === 'LOST', JSON.stringify(lostView.json));
   check('TEST 7b: LOST page carries customization', lostView.json.customization?.template === 'colorful');
   check('TEST 7c: LOST page carries item info', lostView.json.item?.name === 'Black Stainless Tumbler');
+  check('TEST 7d: LOST page carries recovery instructions', lostView.json.item?.recoveryInstructions === 'Drop at the Main St cafe front desk, or call to arrange pickup.', JSON.stringify(lostView.json.item));
 
   // TEST 8: only permitted contact shown (email yes, phone no)
   const lostFields = lostView.json.contact?.fields || [];
@@ -265,6 +283,37 @@ try {
     lostFields.some((f) => f.type === 'email' && f.value === 'ayan@test.local'),
     JSON.stringify(lostFields));
   check('TEST 8b: private phone hidden', !lostFields.some((f) => f.type === 'phone'));
+  check('TEST 8c: contact preference exposed when LOST',
+    lostView.json.contact?.preferredMethod === 'email',
+    JSON.stringify(lostView.json.contact));
+
+  // Privacy gate on preferredMethod: pointing it at a HIDDEN field must NOT leak
+  // that channel. Set preferred -> phone (which is show:false); the public page
+  // suppresses it. Restored to email afterwards so later assertions hold.
+  await api('PUT', `/api/owner/contact/${qr1}`, {
+    token: ayan,
+    body: {
+      fields: [
+        { type: 'email', value: 'ayan@test.local', show: true },
+        { type: 'phone', value: '0917-000-0000', show: false },
+      ],
+      preferredMethod: 'phone',
+    },
+  });
+  const hiddenPrefView = await api('GET', `/api/q/${qr1}`);
+  check('TEST 8d: preferred method for a HIDDEN field is not exposed',
+    hiddenPrefView.json.contact?.preferredMethod === '',
+    JSON.stringify(hiddenPrefView.json.contact));
+  await api('PUT', `/api/owner/contact/${qr1}`, {
+    token: ayan,
+    body: {
+      fields: [
+        { type: 'email', value: 'ayan@test.local', show: true },
+        { type: 'phone', value: '0917-000-0000', show: false },
+      ],
+      preferredMethod: 'email',
+    },
+  });
 
   // ---- FINDER "I FOUND THIS" REPORTS (qr1 is LOST, owned by ayan) -----------
   const noteStart = await api('GET', '/api/owner/notifications', { token: ayan });
@@ -530,6 +579,80 @@ try {
   await api('PUT', `/api/admin/qr/${d3}/disable`, { token: adminToken });
   const delDisabled = await api('DELETE', `/api/owner/qr/${d3}`, { token: ayan });
   check('DELETE: blocked when admin-DISABLED (409 DISABLED)', delDisabled.status === 409 && delDisabled.json.reason === 'DISABLED', JSON.stringify(delDisabled.json));
+
+  // ---- ABUSE / RATE-LIMIT GUARDS (new) --------------------------------------
+  // Run LAST so their windows don't pollute earlier per-IP / per-user counts.
+
+  // Activation attempts are capped per user (40/15min) on TOP of the per-QR
+  // lockout — this is what stops someone iterating codes across many QR ids. Use
+  // a fresh account so its 'activate' bucket starts empty; a non-existent QR still
+  // counts because the limiter runs before the handler.
+  const rl2 = await api('POST', '/api/auth/register', {
+    body: { name: 'ActLimit', username: 'actlimit', password: 'secret12', confirmPassword: 'secret12', acceptedTerms: true },
+  });
+  const actTok = rl2.json.token;
+  let actThrottled = false;
+  let actEarly429 = false;
+  for (let i = 0; i < 41; i++) {
+    const r = await api('POST', '/api/owner/qr/activate', { token: actTok, body: { qrId: 'QR-ZZZZZZZZ', secret: 'ZZZZ-ZZZZ-ZZZZ-ZZ' } });
+    if (i < 40 && r.status === 429) actEarly429 = true;
+    if (i === 40) actThrottled = r.status === 429;
+  }
+  check('RL: activation per-user limit allows first 40', !actEarly429);
+  check('RL: activation per-user limit trips on 41st (429)', actThrottled, String(actThrottled));
+
+  // Claim-requests are capped per user (30/hour) so one account can't flood the
+  // admin review queue across many AVAILABLE QRs.
+  const rl3 = await api('POST', '/api/auth/register', {
+    body: { name: 'ClaimLimit', username: 'claimlimit', password: 'secret12', confirmPassword: 'secret12', acceptedTerms: true },
+  });
+  const claimTok = rl3.json.token;
+  let claimThrottled = false;
+  for (let i = 0; i < 31; i++) {
+    const r = await api('POST', '/api/owner/qr/claim-request', { token: claimTok, body: { qrId: 'QR-ZZZZZZZZ' } });
+    if (i === 30) claimThrottled = r.status === 429;
+  }
+  check('RL: claim-request per-user limit trips (429)', claimThrottled, String(claimThrottled));
+
+  // Registration is capped per IP (30/hour) to blunt mass account creation. The
+  // suite already consumed part of the window, so loop until it trips.
+  let regThrottled = false;
+  for (let i = 0; i < 60 && !regThrottled; i++) {
+    const r = await api('POST', '/api/auth/register', {
+      body: { name: 'Mass', username: `mass_${i}`, password: 'secret12', confirmPassword: 'secret12', acceptedTerms: true },
+    });
+    if (r.status === 429) regThrottled = true;
+  }
+  check('RL: registration per-IP limit eventually trips (429)', regThrottled, String(regThrottled));
+
+  // Public reads (finder resolve + QR images/url) are capped per IP (240/min) to
+  // blunt scraping / id-enumeration / QR-image CPU abuse. The suite already spent
+  // part of the window, so loop until it trips. A legitimate finder makes only a
+  // few of these, so the cap never touches normal use.
+  let publicThrottled = false;
+  let publicThrottleStatus = 0;
+  for (let i = 0; i < 400 && !publicThrottled; i++) {
+    const r = await api('GET', `/api/q/${qr2}`);
+    if (r.status === 429) { publicThrottled = true; publicThrottleStatus = r.status; }
+  }
+  check('RL: public-read per-IP limit eventually trips (429)', publicThrottled, String(publicThrottleStatus));
+
+  // SSE concurrent-connection cap per account (lib/events.js): a client can't hold
+  // unbounded open streams. Exercised at the module level with fake sockets since
+  // holding many real EventSource streams in-process is awkward; the oldest socket
+  // is dropped (its res.end() called) so the newest tab always connects.
+  {
+    const { addClient, connectionCount } = await import('../src/lib/events.js');
+    const { SSE } = await import('../src/lib/constants.js');
+    const uid = 'sse-cap-test-uid';
+    let ended = 0;
+    const fakeRes = () => ({ end() { ended++; }, write() {} });
+    const before = connectionCount();
+    for (let i = 0; i < SSE.MAX_CONN_PER_USER + 5; i++) addClient(uid, fakeRes(), false);
+    const added = connectionCount() - before;
+    check('SSE: per-account connection cap enforced', added === SSE.MAX_CONN_PER_USER, `added=${added} cap=${SSE.MAX_CONN_PER_USER}`);
+    check('SSE: evicted oldest sockets were closed (res.end called)', ended === 5, `ended=${ended}`);
+  }
 
   console.log(`\n${pass} passed, ${fail} failed`);
 } catch (e) {

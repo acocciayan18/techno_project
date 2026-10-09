@@ -10,8 +10,16 @@ import * as itemService from '../services/items.js';
 import * as customService from '../services/customizations.js';
 import * as contactService from '../services/contacts.js';
 import * as notificationService from '../services/notifications.js';
+import { publishToUser } from '../lib/events.js';
 
 const router = Router();
+
+// Per-IP backstop on every unauthenticated public read (finder resolve + QR
+// image/url). Generous enough that a real finder never notices; it blunts
+// scraping, id-enumeration sweeps and QR-image CPU abuse. Keyed by IP, so correct
+// only with `trust proxy` set in prod (same requirement as the other IP limits).
+const publicReadLimiter = rateLimit({ ...RATE_LIMIT.PUBLIC_READ, bucket: 'public-read', keyBy: 'ip' });
+router.use(['/q/:qrId', '/qr/:qrId/image.png', '/qr/:qrId/image.svg', '/qr/:qrId/url'], publicReadLimiter);
 
 // Resolve a QR into exactly what a finder (no auth) is allowed to see.
 // Returns a `state` tag the frontend renders. Private contact is exposed ONLY when LOST.
@@ -30,10 +38,15 @@ router.get('/q/:qrId', async (req, res, next) => {
 
     const customization = await customService.getCustomization(qrId);
 
+    // basePublicItem is only ever returned in LOST / PUBLIC_INFO states, so
+    // recoveryInstructions (how/where to return it) rides the same privacy gate.
+    // Private fields (serial numbers, identifying marks) are NOT part of the item
+    // model and are never included here.
     const basePublicItem = {
       name: item.name,
       description: item.description || '',
       category: item.category || '',
+      recoveryInstructions: item.recoveryInstructions || '',
       photoUrl: item.photoUrl || null,
     };
 
@@ -110,6 +123,8 @@ router.post('/q/:qrId/found', foundLimiter, validate(foundSchema), async (req, r
       itemName: item.name,
       note: req.body.note,
     });
+    // Live-nudge the owner's open sessions so the bell/badge updates without a reload.
+    publishToUser(qr.ownerUid, ['owner/notifications']);
     return res.status(deduped ? 200 : 201).json({ ok: true, deduped });
   } catch (e) {
     next(e);

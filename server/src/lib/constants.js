@@ -46,12 +46,52 @@ export const UPLOAD = {
   IMPORT_MAX_REDIRECTS: 3,
 };
 
-// Simple per-user, per-route request throttles (fixed window). In-memory only —
-// good enough for one instance; a shared store would be needed to throttle
-// across a horizontally scaled fleet.
+// Simple per-user / per-IP, per-route request throttles (fixed window). In-memory
+// only — good enough for one instance; a shared store (Redis/Firestore) would be
+// needed to throttle across a horizontally scaled fleet (see middleware/rateLimit.js).
+//
+// Two families of key:
+//   keyBy:'user'  — authenticated routes, throttled per account (can't be dodged
+//                   by refreshing, new tabs, or hitting the API directly: the key
+//                   is the uid in the signed JWT, not the connection).
+//   keyBy:'ip'    — unauthenticated routes, throttled per client IP (requires a
+//                   correct `trust proxy` setting in prod so req.ip is the real
+//                   client, not the load balancer — see createApp()).
+//
+// These are deliberately generous: a backstop against scripted abuse / runaway
+// loops, sized so no realistic human workflow is ever throttled. The hard
+// security guarantees (login lockout, per-QR activation lockout, ownership
+// checks) live elsewhere and do NOT depend on these limits.
 export const RATE_LIMIT = {
   PHOTO: { windowMs: 60 * 1000, max: 20 }, // photo writes (upload + url-import) per user/min
   FOUND_REPORT: { windowMs: 60 * 1000, max: 5 }, // finder "I found this" reports per IP/min (unauthenticated)
+
+  // Unauthenticated PUBLIC reads — per IP. Covers the finder page resolve
+  // (GET /q/:id) and the QR image/url endpoints. Blunts scraping, id-enumeration
+  // sweeps across the 36^8 id space, and QR-image CPU abuse. A real finder loading
+  // one page makes only a few of these, so 240/min never troubles a human.
+  PUBLIC_READ: { windowMs: 60 * 1000, max: 240 },
+  // SSE (re)connection attempts per IP. EventSource reconnects every ~5s, so even
+  // several tabs stay well under this; it caps a reconnect-storm / handshake flood
+  // (each handshake costs a live-user DB lookup).
+  STREAM: { windowMs: 60 * 1000, max: 120 },
+  // Authenticated self endpoints (GET /me, PUT /me/settings) — per user. A backstop
+  // on the one authed surface not under the owner/admin routers' global cap.
+  ME: { windowMs: 60 * 1000, max: 120 },
+
+  // Unauthenticated auth endpoints — per IP.
+  LOGIN: { windowMs: 15 * 60 * 1000, max: 100 }, // login attempts/IP (account lockout is the real brute-force guard)
+  REGISTER: { windowMs: 60 * 60 * 1000, max: 30 }, // new accounts/IP/hour — blunts mass sign-up
+  FORGOT: { windowMs: 15 * 60 * 1000, max: 30 }, // reset-email requests/IP — blunts email bombing + SMTP abuse
+  RESET: { windowMs: 15 * 60 * 1000, max: 30 }, // reset-token submissions/IP
+
+  // Authenticated owner actions — per user.
+  ACTIVATE: { windowMs: 15 * 60 * 1000, max: 40 }, // activation attempts/user (per-QR lockout is the brute-force guard)
+  CLAIM: { windowMs: 60 * 60 * 1000, max: 30 }, // claim requests/user/hour — stops flooding the admin queue
+  // Global per-user backstop on every authenticated router. High enough that a
+  // real UI (even rapid clicking) never trips it; low enough to stop a runaway
+  // client loop or a scripted hammer.
+  API: { windowMs: 60 * 1000, max: 480 },
 };
 
 // Owner notifications. Currently one kind: a finder reporting that a LOST item has
@@ -62,6 +102,12 @@ export const NOTIFICATION = {
   TYPE: { FOUND_REPORT: 'FOUND_REPORT' },
   NOTE_MAX: 300, // optional finder note cap (server-side guard; not surfaced in the UI)
 };
+// Max concurrent SSE connections held open for one account. Normal use is a few
+// tabs/devices; the cap stops a client (or a script holding a valid token) from
+// opening unbounded sockets and exhausting file descriptors / memory. When the cap
+// is hit the OLDEST connection is dropped so the newest tab always works.
+export const SSE = { MAX_CONN_PER_USER: 12 };
+
 export const ROLE = { USER: 'user', ADMIN: 'admin' };
 export const TEMPLATES = ['minimal', 'colorful', 'personal'];
 
@@ -75,6 +121,7 @@ export const TEXT_LIMITS = {
   ITEM_NAME: 120,
   ITEM_DESCRIPTION: 1000,
   ITEM_CATEGORY: 60,
+  RECOVERY_INSTRUCTIONS: 500, // owner's "how/where to return it" note (public when LOST)
   PAGE_TITLE: 80,
   FINDER_MESSAGE: 400,
   CONTACT_BUTTON_TEXT: 40,

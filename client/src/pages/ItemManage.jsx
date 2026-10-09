@@ -33,7 +33,7 @@ export default function ItemManage() {
   const [busy, setBusy] = useState(false);
 
   const item = data?.item ?? null;
-  const form = itemEdit ?? { name: item?.name || '', description: item?.description || '' };
+  const form = itemEdit ?? { name: item?.name || '', description: item?.description || '', recoveryInstructions: item?.recoveryInstructions || '' };
   const custom = customEdit ?? data?.customization ?? null;
   const contact = contactEdit ?? data?.contact ?? null;
   // Editor always shows at least one row; an empty contact seeds a blank Email.
@@ -47,6 +47,8 @@ export default function ItemManage() {
 
   // Contact fields are a dynamic list; every edit rewrites the whole array.
   const commitFields = (next) => setContactEdit({ ...(contact || {}), fields: next });
+  // Preferred-method / best-time preferences live alongside the fields on the same doc.
+  const setContactPref = (k) => (e) => setContactEdit({ ...(contact || {}), [k]: e.target.value });
   const clearFieldError = (i) => setFieldErrors((prev) => { const n = { ...prev }; delete n[i]; return n; });
   const setFieldType = (i) => (e) => { commitFields(fields.map((f, j) => (j === i ? { ...f, type: e.target.value } : f))); clearFieldError(i); };
   const setFieldValue = (i) => (e) => { commitFields(fields.map((f, j) => (j === i ? { ...f, value: e.target.value } : f))); clearFieldError(i); };
@@ -73,7 +75,7 @@ export default function ItemManage() {
     setBusy(true);
     try {
       await Promise.all([
-        api.put(`/owner/items/${qrId}`, { name: form.name, description: form.description }),
+        api.put(`/owner/items/${qrId}`, { name: form.name, description: form.description, recoveryInstructions: form.recoveryInstructions }),
         api.put(`/owner/customizations/${qrId}`, {
           template: custom.template,
           bgColor: custom.bgColor,
@@ -85,6 +87,7 @@ export default function ItemManage() {
         }),
         api.put(`/owner/contact/${qrId}`, {
           fields: fields.map((f) => ({ type: f.type, value: f.value.trim(), show: !!f.show })),
+          preferredMethod: contact?.preferredMethod || '',
         }),
       ]);
       // The photo is managed independently by <PhotoField> (its own endpoints),
@@ -94,7 +97,11 @@ export default function ItemManage() {
         ...(d || {}),
         item: { ...(d?.item || {}), ...form },
         customization: custom,
-        contact: { ...(d?.contact || {}), fields: fields.map((f) => ({ type: f.type, value: f.value.trim(), show: !!f.show })) },
+        contact: {
+          ...(d?.contact || {}),
+          fields: fields.map((f) => ({ type: f.type, value: f.value.trim(), show: !!f.show })),
+          preferredMethod: contact?.preferredMethod || '',
+        },
       }));
       notify.success('Changes saved.');
       navigate(`/qr/${qrId}`);
@@ -132,6 +139,17 @@ export default function ItemManage() {
           <label className="field-label">Description
             <textarea rows={3} value={form.description} onChange={setItem('description')} maxLength={LIMITS.itemDescription} />
             <CharCount value={form.description} max={LIMITS.itemDescription} />
+          </label>
+          <label className="field-label">Recovery instructions <span className="text-muted">(optional)</span>
+            <textarea
+              rows={3}
+              value={form.recoveryInstructions || ''}
+              onChange={setItem('recoveryInstructions')}
+              maxLength={LIMITS.recoveryInstructions}
+              placeholder="Where or how a finder should return it — e.g. drop at the front desk of 123 Main St, or call to arrange pickup."
+            />
+            <CharCount value={form.recoveryInstructions || ''} max={LIMITS.recoveryInstructions} />
+            <p className="text-muted text-[.82rem] mt-1">Shown to finders only when the item is lost (or if “Always show information” is on). Don’t put serial numbers or secret marks here — this page is public.</p>
           </label>
           <div className="field-label">Photo (optional)
             <div className="mt-1">
@@ -244,6 +262,17 @@ export default function ItemManage() {
           <motion.button type="button" className="btn btn-ghost btn-sm mt-3" onClick={addField} {...tapProps}>
             <Plus size={16} strokeWidth={2.5} /> Add contact field
           </motion.button>
+
+          <h3 className="mt-5">Contact preferences <span className="text-muted">(optional)</span></h3>
+          <p className="text-muted text-[.85rem]">Help a finder reach you the right way. Shown on the public page alongside your contact details.</p>
+          <label className="field-label">Preferred method
+            <select value={contact?.preferredMethod || ''} onChange={setContactPref('preferredMethod')}>
+              <option value="">No preference</option>
+              {Array.from(new Set(fields.filter((f) => (f.value || '').trim()).map((f) => f.type))).map((t) => (
+                <option key={t} value={t}>{getContactType(t).label}</option>
+              ))}
+            </select>
+          </label>
         </div>
 
         <motion.button className="btn btn-primary" disabled={busy} {...tapProps}>

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Download, FileCode, ExternalLink, Power, Printer, Check, Ban, Trash2 } from 'lucide-react';
 import { api } from '../lib/api.js';
+import { apiUrl } from '../lib/config.js';
 import { useResource, useDataStore } from '../store/dataStore.js';
 import { usePending } from '../lib/useAsync.js';
 import { useConfirm } from './ConfirmDialog.jsx';
@@ -150,14 +151,14 @@ function DrawerBody({ qrId, onChanged, onClose }) {
       <div className="card !mb-0 text-center">
         <img
           className="w-[180px] max-w-full border border-border rounded-sm bg-white p-2 mx-auto"
-          src={`/api/qr/${qrId}/image.png`}
+          src={apiUrl(`/api/qr/${qrId}/image.png`)}
           alt={`QR ${qrId}`}
         />
         <div className="flex gap-[.5rem] flex-wrap items-center justify-center mt-3">
-          <a className="btn btn-sm" href={`/api/qr/${qrId}/image.png`} download={`${qrId}.png`}>
+          <a className="btn btn-sm" href={apiUrl(`/api/qr/${qrId}/image.png`)} download={`${qrId}.png`}>
             <Download size={15} strokeWidth={2.5} /> PNG
           </a>
-          <a className="btn btn-sm" href={`/api/qr/${qrId}/image.svg`} download={`${qrId}.svg`}>
+          <a className="btn btn-sm" href={apiUrl(`/api/qr/${qrId}/image.svg`)} download={`${qrId}.svg`}>
             <FileCode size={15} strokeWidth={2.5} /> SVG
           </a>
           <motion.button className="btn btn-sm" onClick={() => setPrintOpen(true)} {...tapProps}>
@@ -269,6 +270,7 @@ function DrawerBody({ qrId, onChanged, onClose }) {
             <Row label="Name">{item.name || '—'}</Row>
             <Row label="Category">{item.category || '—'}</Row>
             <Row label="Description">{item.description || '—'}</Row>
+            <Row label="Recovery">{item.recoveryInstructions || '—'}</Row>
             <Row label="Item status">
               <span className={`badge ${ITEM_BADGE[item.status] || 'badge-gray'}`}>{item.status}</span>
             </Row>

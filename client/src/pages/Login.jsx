@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { LogIn, User } from 'lucide-react';
+import { User } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { tapProps } from '../components/motion.jsx';
 import Spinner from '../components/Spinner.jsx';
@@ -65,11 +65,11 @@ export default function Login() {
           />
         </div>
         <motion.button className="btn btn-primary btn-lg w-full" disabled={busy} {...tapProps}>
-          {busy ? <Spinner size={18} /> : <LogIn size={18} strokeWidth={2.5} />}
+          {busy && <Spinner size={18} />}
           {busy ? 'Logging in…' : 'Log in'}
         </motion.button>
       </form>
-      <p className="text-center text-muted mt-4 text-sm">No account? <Link to="/register">Create one</Link></p>
+      <p className="text-center text-muted mt-5 text-sm">No account? <Link to="/register">Create one</Link></p>
     </div>
   );
 }

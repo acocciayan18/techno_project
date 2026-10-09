@@ -91,4 +91,14 @@ export const useAuthStore = create((set, get) => ({
     set({ user: null });
     notify.success('Logged out.');
   },
+
+  // End the session from a server-driven event (e.g. the real-time stream reports
+  // the account was disabled). Like logout() but with a caller-supplied reason and
+  // no "Logged out" success toast. Idempotent: safe if already signed out.
+  forceLogout(message) {
+    setToken(null);
+    useDataStore.getState().reset();
+    if (get().user) set({ user: null });
+    if (message) notify.warning(message);
+  },
 }));

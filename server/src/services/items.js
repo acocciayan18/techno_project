@@ -10,7 +10,7 @@ export async function getItem(qrId) {
   return { qrId: doc.id, ...doc.data() };
 }
 
-export async function upsertItem(qrId, ownerUid, { name, description, category, photoUrl, photoKey, photoThumbUrl, photoHash }) {
+export async function upsertItem(qrId, ownerUid, { name, description, category, recoveryInstructions, photoUrl, photoKey, photoThumbUrl, photoHash }) {
   const ref = col().doc(qrId);
   const existing = await ref.get();
   const base = existing.exists ? existing.data() : { status: ITEM_STATUS.ACTIVE };
@@ -19,6 +19,9 @@ export async function upsertItem(qrId, ownerUid, { name, description, category, 
     name: name ?? base.name ?? '',
     description: description ?? base.description ?? '',
     category: category ?? base.category ?? '',
+    // Owner's note on how/where a finder should return the item. Public ONLY when
+    // the item is LOST (or the owner opted into always-show) — same gate as contact.
+    recoveryInstructions: recoveryInstructions ?? base.recoveryInstructions ?? '',
     photoUrl: photoUrl !== undefined ? photoUrl : base.photoUrl ?? null,
     // photoKey tracks the storage object behind photoUrl so it can be cleaned up
     // later. photoThumbUrl is an optimized thumbnail (= photoUrl on backends with

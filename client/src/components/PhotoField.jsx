@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ImageUp, Camera, Link2, X, RotateCcw, WifiOff, AlertTriangle, ImageOff } from 'lucide-react';
 import { api } from '../lib/api.js';
+import { assetUrl } from '../lib/config.js';
 import { notify } from '../lib/toast.jsx';
 import { tapProps } from './motion.jsx';
 import Spinner from './Spinner.jsx';
@@ -197,7 +198,7 @@ export default function PhotoField({ qrId, item, onChange }) {
       <div className="flex items-start gap-4 flex-wrap">
         <div className="w-[160px] h-[160px] flex-none rounded-sm border border-border bg-surface shadow-brutal-sm overflow-hidden grid place-items-center">
           {current ? (
-            <img src={current} alt="Current item photo" className="w-full h-full object-cover" />
+            <img src={assetUrl(current)} alt="Current item photo" className="w-full h-full object-cover" />
           ) : (
             <span className="text-muted-2 text-xs font-medium flex flex-col items-center gap-1.5">
               <ImageOff size={22} strokeWidth={2} /> No photo
