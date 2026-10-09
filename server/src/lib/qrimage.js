@@ -1,7 +1,7 @@
 import QRCode from 'qrcode';
 
 export function publicUrlFor(qrId) {
-  const base = (process.env.PUBLIC_BASE_URL || 'http://localhost:5173').replace(/\/+$/, '');
+  const base = (process.env.VITE_API_BASE_URL || 'http://localhost:5173').replace(/\/+$/, '');
   return `${base}/q/${qrId}`;
 }
 

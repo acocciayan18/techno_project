@@ -144,7 +144,7 @@ router.post('/forgot-password', validate(forgotSchema), async (req, res, next) =
     const user = await findByUsername(req.body.username);
     if (user && user.recoveryEmail && !user.disabled) {
       const token = await issueResetToken(user.uid);
-      const base = process.env.PUBLIC_BASE_URL || 'http://localhost:5173';
+      const base = process.env.VITE_API_BASE_URL || 'http://localhost:5173';
       const link = `${base}/reset-password?token=${token}`;
       await sendPasswordReset({ to: user.recoveryEmail, link });
     }
