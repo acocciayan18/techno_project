@@ -5,7 +5,7 @@ export function publicUrlFor(qrId) {
   return `${base}/q/${qrId}`;
 }
 
-// The QR image encodes ONLY the permanent public URL — never owner/item/contact data.
+
 export async function qrPngBuffer(qrId) {
   return QRCode.toBuffer(publicUrlFor(qrId), { type: 'png', width: 512, margin: 2 });
 }
