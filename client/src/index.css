@@ -231,6 +231,12 @@
     padding: 1.15rem;
     margin-bottom: 1.1rem;
   }
+  /* Gap-based stacks already own the space between their children. Avoid
+     adding the card's standalone bottom margin on top of that gap. */
+  .grid > .card,
+  .flex.flex-col > .card {
+    margin-bottom: 0;
+  }
 
   /* ---------------------------- Stat tiles ----------------------------- */
   /* The tile is its own query container: when it has the width, the icon sits

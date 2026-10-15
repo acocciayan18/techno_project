@@ -81,12 +81,10 @@ export default function QrView() {
   if (error && !data) return <p className="status-msg status-error">{error}</p>;
   if (loading && !data) return (
     <div>
-      <div className="mb-[1.1rem]">
-        <div className="flex justify-between items-center gap-4">
-          <Skeleton className="h-9 w-20 !rounded-xs" />
-          <Skeleton className="h-5 w-16 !rounded-full" />
-        </div>
-        <Skeleton className="h-8 w-32 mt-2.5" />
+      <Skeleton className="h-9 w-20 !rounded-xs mb-3" />
+      <div className="flex justify-between items-center gap-4 mb-[1.1rem]">
+        <Skeleton className="h-8 w-32" />
+        <Skeleton className="h-5 w-16 !rounded-full" />
       </div>
       <div className="grid grid-cols-1 gap-4 min-[900px]:grid-cols-2">
         <div className="card text-center flex flex-col items-center gap-3">
@@ -115,12 +113,10 @@ export default function QrView() {
 
   return (
     <div>
-      <div className="mb-[1.1rem]">
-        <div className="flex justify-between items-center gap-4">
-          <Link className="btn btn-ghost btn-sm self-start" to="/dashboard"><ArrowLeft size={16} strokeWidth={2.5} /> Back</Link>
-          {item && <span className={`badge ${BADGE[status] || 'badge-gray'}`}>{status}</span>}
-        </div>
-        <h1 className="mt-2.5">{qrId}</h1>
+      <Link className="btn btn-ghost btn-sm self-start mb-3" to="/dashboard"><ArrowLeft size={16} strokeWidth={2.5} /> Back</Link>
+      <div className="flex justify-between items-center gap-4 mb-[1.1rem]">
+        <h1 className="m-0">{qrId}</h1>
+        {item && <span className={`badge ${BADGE[status] || 'badge-gray'}`}>{status}</span>}
       </div>
 
       <div className="grid grid-cols-1 gap-4 min-[900px]:grid-cols-2">

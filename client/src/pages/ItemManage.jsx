@@ -114,20 +114,16 @@ export default function ItemManage() {
   if (loadError && !data) return <p className="status-msg status-error">{loadError}</p>;
   if (loading || !custom || !contact) return (
     <div>
-      <div className="flex items-center gap-3 mb-[1.1rem]">
-        <Skeleton className="h-9 w-20 !rounded-xs" />
-        <Skeleton className="h-8 w-48" />
-      </div>
+      <Skeleton className="h-9 w-20 !rounded-xs mb-3" />
+      <Skeleton className="h-8 w-48 mb-[1.1rem]" />
       <SkeletonForm fields={6} className="max-w-[560px]" />
     </div>
   );
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-[1.1rem]">
-        <Link className="btn btn-ghost btn-sm self-start" to={`/qr/${qrId}`}><ArrowLeft size={16} strokeWidth={2.5} /> Back</Link>
-        <h1>Manage {qrId}</h1>
-      </div>
+      <Link className="btn btn-ghost btn-sm self-start mb-3" to={`/qr/${qrId}`}><ArrowLeft size={16} strokeWidth={2.5} /> Back</Link>
+      <h1 className="mb-[1.1rem]">Manage {qrId}</h1>
 
       <form onSubmit={onSave} className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
         <div className="card">

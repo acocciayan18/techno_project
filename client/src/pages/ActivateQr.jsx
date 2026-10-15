@@ -114,7 +114,10 @@ function ConfirmActivate({ qrId, busy, onConfirm, onCancel }) {
 export default function ActivateQr() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [mode, setMode] = useState('code'); // 'code' = proof of possession, 'request' = admin review
+  // 'code' = proof of possession, 'request' = admin review. Preselect the
+  // request flow when deep-linked with ?mode=request (e.g. the My Requests page's
+  // "Request QR Code Activation" button).
+  const [mode, setMode] = useState(() => (searchParams.get('mode') === 'request' ? 'request' : 'code'));
   // Prefill from the public "not activated" page's Copy-ID → Activate deep link
   // (/activate?qr=QR-XXXX). The user still supplies the secret activation code.
   const [qrId, setQrId] = useState(() => formatQrId(searchParams.get('qr') || ''));
@@ -186,10 +189,8 @@ export default function ActivateQr() {
   if (requested) {
     return (
       <div>
-        <div className="flex flex-col-reverse md:flex-row md:justify-between md:items-center gap-3 md:gap-4 mb-[1.1rem]">
-          <h1>Activate a QR</h1>
-          <Link className="btn btn-ghost btn-sm self-start" to="/dashboard"><ArrowLeft size={16} strokeWidth={2.5} /> Back</Link>
-        </div>
+        <Link className="btn btn-ghost btn-sm self-start mb-3" to="/dashboard"><ArrowLeft size={16} strokeWidth={2.5} /> Back</Link>
+        <h1 className="mb-[1.1rem]">Activate a QR</h1>
         <div className="card flex flex-col items-center text-center gap-3 py-10">
           <span className="w-12 h-12 grid place-items-center rounded-[12px] bg-info-weak text-info"><Clock size={24} strokeWidth={2} /></span>
           <h2 className="m-0">Request submitted</h2>
@@ -215,12 +216,10 @@ export default function ActivateQr() {
         />
       )}
 
-      <div className="flex flex-col-reverse md:flex-row md:justify-between md:items-center gap-3 md:gap-4 mb-[1.1rem]">
-        <div>
-          <h1>Activate a QR</h1>
-          <p className="text-muted text-[.95rem] m-0">Link a QR sticker to your account to start protecting an item.</p>
-        </div>
-        <Link className="btn btn-ghost btn-sm self-start" to="/dashboard"><ArrowLeft size={16} strokeWidth={2.5} /> Back</Link>
+      <Link className="btn btn-ghost btn-sm self-start mb-3" to="/dashboard"><ArrowLeft size={16} strokeWidth={2.5} /> Back</Link>
+      <div className="mb-[1.1rem]">
+        <h1>Activate a QR</h1>
+        <p className="text-muted text-[.95rem] m-0">Link a QR sticker to your account to start protecting an item.</p>
       </div>
 
       {/* Mode switch: the activation code proves you physically hold the product. */}

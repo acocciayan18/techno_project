@@ -1,3 +1,4 @@
+import { useLayoutEffect } from 'react';
 import { Navigate, Route, Routes, Link, NavLink, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Toaster } from 'sonner';
@@ -29,6 +30,24 @@ import Requests from './pages/Requests.jsx';
 import Help from './pages/Help.jsx';
 
 const MotionNavLink = motion.create(NavLink);
+
+function ScrollToTop() {
+  const { pathname, search, hash } = useLocation();
+
+  useLayoutEffect(() => {
+    const previousRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = 'manual';
+    return () => {
+      window.history.scrollRestoration = previousRestoration;
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!hash) window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [pathname, search, hash]);
+
+  return null;
+}
 
 function ProtectedRoute({ children, admin, userOnly }) {
   const { user, loading, isAdmin } = useAuth();
@@ -235,6 +254,7 @@ export default function App() {
   return (
     <>
       <AppToaster />
+      <ScrollToTop />
       <Chrome>
         <Routes>
         <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <Landing />} />

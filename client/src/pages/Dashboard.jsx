@@ -182,8 +182,14 @@ export default function Dashboard() {
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const firstName = (user?.name || user?.username || '').split(/[\s@]/)[0];
-  const { data: qrcodes, error, loading, reload } = useResource('owner/qrcodes', () => api.get('/owner/qrcodes').then((r) => r.qrcodes));
-  const { data: claims } = useResource('owner/claims', () => api.get('/owner/claims').then((r) => r.claims));
+  const { data: qrcodes, error, loading, reload } = useResource(
+    isAdmin ? 'noop/qrcodes' : 'owner/qrcodes',
+    isAdmin ? () => Promise.resolve([]) : () => api.get('/owner/qrcodes').then((r) => r.qrcodes),
+  );
+  const { data: claims } = useResource(
+    isAdmin ? 'noop/claims' : 'owner/claims',
+    isAdmin ? () => Promise.resolve([]) : () => api.get('/owner/claims').then((r) => r.claims),
+  );
   const { run, isPending } = usePending();
   const confirm = useConfirm();
 
@@ -317,7 +323,7 @@ export default function Dashboard() {
         <div className="min-w-0">
           <h1 className="truncate">Hi, {firstName || 'there'}</h1>
           <p className="text-muted text-[.95rem] m-0">
-            {isAdmin ? 'System status and your codes at a glance.' : 'Here’s what needs you.'}
+            {isAdmin ? 'System status at a glance.' : 'Here’s what needs you.'}
           </p>
         </div>
         {/* Owner actions only: the bell (finder reports) and Activate are regular-user
@@ -336,7 +342,7 @@ export default function Dashboard() {
 
       {isAdmin && <AdminOverview />}
 
-      {claims && claims.length > 0 && (
+      {!isAdmin && claims && claims.length > 0 && (
         <div className="card !mb-6 !border-warn">
           <div className="flex items-center gap-2 mb-2">
             <Clock size={17} strokeWidth={2.2} className="text-warn" />
@@ -356,6 +362,7 @@ export default function Dashboard() {
       {/* Finder-report activity is an owner feature; admins don't see it. */}
       {!isAdmin && <RecentActivity />}
 
+      {!isAdmin && <>
       <div className="flex items-center justify-between gap-3 mb-4">
         <h2 className="m-0">My QR codes</h2>
         {qrcodes && qrcodes.length > 0 && (
@@ -541,6 +548,7 @@ export default function Dashboard() {
           );
         })}
       </div>
+      </>}
     </div>
   );
 }

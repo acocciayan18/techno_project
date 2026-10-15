@@ -1,7 +1,8 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Inbox, Clock, StickyNote, X, Check, Ban, ChevronRight, RotateCcw, Plus, ArrowLeft } from 'lucide-react';
+import { Inbox, Clock, StickyNote, X, Check, Ban, ChevronRight, RotateCcw, Plus, ArrowLeft, QrCode, PlusIcon } from 'lucide-react';
 import { api } from '../lib/api.js';
+import { useAuth } from '../context/AuthContext.jsx';
 import { useResource } from '../store/dataStore.js';
 import { usePending } from '../lib/useAsync.js';
 import { useConfirm } from '../components/ConfirmDialog.jsx';
@@ -28,6 +29,7 @@ export default function Requests() {
   const { run, isPending } = usePending();
   const confirm = useConfirm();
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   // Back out to wherever the user came from, falling back to the dashboard when
   // there's no in-app history (e.g. landed here from a direct link).
   const goBack = () => (window.history.length > 1 ? navigate(-1) : navigate('/dashboard'));
@@ -67,9 +69,21 @@ export default function Requests() {
       <motion.button type="button" onClick={goBack} className="btn btn-ghost btn-sm self-start mb-3 md:hidden" {...tapProps}>
         <ArrowLeft size={16} strokeWidth={2.5} /> Back
       </motion.button>
-      <div className="flex items-center gap-3 flex-wrap mb-[1.1rem]">
-        <h1 className="m-0">My Requests</h1>
-        {pendingCount > 0 && <span className="badge badge-amber">{pendingCount} pending</span>}
+      <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4 mb-[1.1rem]">
+        <div className="flex items-center gap-3 flex-wrap">
+          <h1 className="m-0">My Requests</h1>
+          {pendingCount > 0 && <span className="badge badge-amber">{pendingCount} pending</span>}
+        </div>
+        {/* Regular users only , admins review requests, they don't file them. */}
+        {!isAdmin && (
+          <MotionLink
+            to="/activate?mode=request"
+            className="btn btn-primary w-full md:w-auto md:ml-auto justify-center"
+            {...tapProps}
+          >
+            <PlusIcon size={18} strokeWidth={2.5} /> Request
+          </MotionLink>
+        )}
       </div>
       <p className="text-muted text-[.95rem] mt-0 mb-4 max-w-prose">
         Activation requests you’ve filed for QR codes you couldn’t activate with a printed code.
