@@ -5,6 +5,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 import { signToken } from '../lib/jwt.js';
 import { sendPasswordReset } from '../lib/mailer.js';
+import { publicBaseUrl } from '../lib/qrimage.js';
 import { verifyCaptcha } from '../lib/captcha.js';
 import { canonicalizeEmail } from '../lib/email.js';
 import { publishToUser, publishToAdmins } from '../lib/events.js';
@@ -244,8 +245,7 @@ router.post('/forgot-password', forgotLimiter, validate(forgotSchema), async (re
     const user = await findByUsername(req.body.username);
     if (user && user.recoveryEmail && !user.disabled) {
       const token = await issueResetToken(user.uid);
-      const base = process.env.VITE_API_BASE_URL || 'http://localhost:5173';
-      const link = `${base}/reset-password?token=${token}`;
+      const link = `${publicBaseUrl()}/reset-password?token=${token}`;
       await sendPasswordReset({ to: user.recoveryEmail, link });
     }
     res.json({ message: GENERIC_FORGOT });

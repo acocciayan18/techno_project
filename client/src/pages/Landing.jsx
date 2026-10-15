@@ -256,7 +256,7 @@ function HowItWorks() {
 const BENEFITS = [
   { icon: ShieldCheck, title: 'Privacy by default', text: 'Finders contact you through TagBack — your phone number, email and address are never exposed on the tag.' },
   { icon: PackageSearch, title: 'Faster recovery', text: 'A clear, scannable tag turns an honest finder into a quick return instead of a trip to lost-and-found.' },
-  { icon: Palette, title: 'Customizable item pages', text: 'Add a name, photo, category and a personal message — even offer a reward — on each item’s QR page.' },
+  { icon: Palette, title: 'Customizable item pages', text: 'Add a name, photo and a personal message — even offer a reward — on each item’s QR page.' },
   { icon: Smartphone, title: 'No app for finders', text: 'Any modern phone camera opens the item page. Nothing to download, nothing to install.' },
   { icon: BellRing, title: 'Instant notifications', text: 'The moment someone scans a lost item, you’re alerted so you can respond right away.' },
   { icon: Tag, title: 'One tag, reusable', text: 'Mark an item recovered and the tag resets — reactivate or move it to something new anytime.' },

@@ -54,11 +54,6 @@ export default function ItemPageTemplate({ qrId, customization = {}, item = {}, 
                 src={assetUrl(item.photoUrl)}
                 alt={item.name || 'Item'}
               />
-              {item.category && (
-                <span className="absolute top-3.5 left-3.5 chip-gold bg-card/95 shadow-brutal-sm backdrop-blur-sm">
-                  {item.category}
-                </span>
-              )}
             </div>
           ) : (
             <div className="w-full aspect-[4/3] rounded-lg bg-surface border border-border shadow-brutal flex items-center justify-center text-muted-2 text-[.9rem] font-medium">
@@ -101,12 +96,6 @@ export default function ItemPageTemplate({ qrId, customization = {}, item = {}, 
           >
             {item.name || 'Unnamed item'}
           </motion.h1>
-
-          {item.category && (
-            <motion.div variants={rise} className="mt-3">
-              <span className="chip-gold">{item.category}</span>
-            </motion.div>
-          )}
 
           {item.description && (
             <motion.p variants={rise} className="mt-4 text-muted text-[1.02rem] leading-relaxed max-w-prose break-words whitespace-pre-wrap">

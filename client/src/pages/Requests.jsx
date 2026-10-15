@@ -1,6 +1,6 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Inbox, Clock, StickyNote, X, Check, Ban, ChevronRight, RotateCcw, Plus } from 'lucide-react';
+import { Inbox, Clock, StickyNote, X, Check, Ban, ChevronRight, RotateCcw, Plus, ArrowLeft } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { useResource } from '../store/dataStore.js';
 import { usePending } from '../lib/useAsync.js';
@@ -32,6 +32,10 @@ const STATUS_META = {
 export default function Requests() {
   const { run, isPending } = usePending();
   const confirm = useConfirm();
+  const navigate = useNavigate();
+  // Back out to wherever the user came from, falling back to the dashboard when
+  // there's no in-app history (e.g. landed here from a direct link).
+  const goBack = () => (window.history.length > 1 ? navigate(-1) : navigate('/dashboard'));
 
   const { data: requests, error, loading, reload } = useResource(
     'owner/claims/requests',
@@ -65,6 +69,9 @@ export default function Requests() {
 
   return (
     <div>
+      <motion.button type="button" onClick={goBack} className="btn btn-ghost btn-sm self-start mb-3" {...tapProps}>
+        <ArrowLeft size={16} strokeWidth={2.5} /> Back
+      </motion.button>
       <div className="flex items-center gap-3 flex-wrap mb-[1.1rem]">
         <h1 className="m-0">My Requests</h1>
         {pendingCount > 0 && <span className="badge badge-amber">{pendingCount} pending</span>}

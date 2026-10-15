@@ -11,7 +11,7 @@ export default function AdminItems() {
   if (loading && !items) return (
     <div>
       <h1>Registered Items</h1>
-      <SkeletonTable cols={4} rows={6} />
+      <SkeletonTable cols={3} rows={6} />
     </div>
   );
 
@@ -20,17 +20,16 @@ export default function AdminItems() {
       <h1>Registered Items</h1>
       <div className="overflow-x-auto">
         <table className="data-table">
-          <thead><tr><th>QR ID</th><th>Item</th><th>Category</th><th>Status</th></tr></thead>
+          <thead><tr><th>QR ID</th><th>Item</th><th>Status</th></tr></thead>
           <tbody>
             {items.map((it) => (
               <tr key={it.qrId}>
                 <td className="font-mono">{it.qrId}</td>
                 <td><span className="block max-w-[16rem] truncate" title={it.name || undefined}>{it.name || '—'}</span></td>
-                <td><span className="block max-w-[10rem] truncate" title={it.category || undefined}>{it.category || '—'}</span></td>
                 <td><span className={`badge ${BADGE[it.status] || 'badge-gray'}`}>{it.status}</span></td>
               </tr>
             ))}
-            {items.length === 0 && <tr><td colSpan="4" className="text-muted text-center">No items registered.</td></tr>}
+            {items.length === 0 && <tr><td colSpan="3" className="text-muted text-center">No items registered.</td></tr>}
           </tbody>
         </table>
       </div>

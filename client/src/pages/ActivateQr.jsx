@@ -224,24 +224,27 @@ export default function ActivateQr() {
       </div>
 
       {/* Mode switch: the activation code proves you physically hold the product. */}
-      <div className="grid grid-cols-2 gap-[.55rem] mb-4">
-        <motion.button
-          type="button"
-          className={`chip-toggle justify-center text-center ${mode === 'code' ? 'chip-toggle-active' : ''}`}
-          onClick={() => setMode('code')}
-          whileTap={{ scale: 0.95 }}
-        >
-          <KeyRound size={15} strokeWidth={2.5} className='mr-2 flex-none' /> I have the activation code
-        </motion.button>
-        <motion.button
-          type="button"
-          className={`chip-toggle justify-center text-center ${mode === 'request' ? 'chip-toggle-active' : ''}`}
-          onClick={() => setMode('request')}
-          whileTap={{ scale: 0.95 }}
-        >
-          <ShieldQuestion size={15} strokeWidth={2.5} className='mr-2 flex-none' /> I don’t have the code
-        </motion.button>
-      </div>
+     
+<div className="flex flex-wrap gap-[.55rem] mb-4">
+  <motion.button
+    type="button"
+    className={`chip-toggle w-fit justify-center text-center ${mode === 'code' ? 'chip-toggle-active' : ''}`}
+    onClick={() => setMode('code')}
+    whileTap={{ scale: 0.95 }}
+  >
+    <KeyRound size={15} strokeWidth={2.5} className="mr-2 flex-none" /> Have Code
+  </motion.button>
+
+  <motion.button
+    type="button"
+    className={`chip-toggle w-fit justify-center text-center ${mode === 'request' ? 'chip-toggle-active' : ''}`}
+    onClick={() => setMode('request')}
+    whileTap={{ scale: 0.95 }}
+  >
+    <ShieldQuestion size={15} strokeWidth={2.5} className="mr-2 flex-none" /> Request Approval
+  </motion.button>
+</div>
+
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start">
         {/* Main: the active form */}
@@ -322,7 +325,7 @@ export default function ActivateQr() {
           </ol>
           <hr className="border-0 border-t border-border my-4" />
           <p className="text-muted-2 text-[.82rem] m-0">
-            No code? Use <strong>I don’t have the code</strong> to request manual review — an admin verifies ownership before activating.
+            No code? Use <strong>Request Approval</strong> to request manual review — an admin verifies ownership before activating.
           </p>
           <Link to="/help" className="btn btn-ghost btn-sm mt-3 w-full justify-center">
             <LifeBuoy size={15} strokeWidth={2.5} /> Help &amp; support

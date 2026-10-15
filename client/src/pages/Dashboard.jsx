@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Plus, QrCode, Flag, Check, Package, Boxes, Users, List, Clock, ChevronRight, ListChecks, Trash2, Search, X, PackageSearch } from 'lucide-react';
+import { Plus, QrCode, Flag, Check, Package, Boxes, Users, List, Clock, ChevronRight, ListChecks, Trash2, Search, X, PackageSearch, Filter } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { assetUrl } from '../lib/config.js';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -353,40 +353,9 @@ export default function Dashboard() {
       <div className="flex items-center justify-between gap-3 mb-4">
         <h2 className="m-0">My QR codes</h2>
         {qrcodes && qrcodes.length > 0 && (
-          <div className="flex items-center gap-3 flex-none">
-            <span className="text-[.82rem] font-semibold text-muted tabular-nums">{list.length} total</span>
-            <motion.button
-              className={`btn btn-sm ${selectMode ? 'btn-primary' : ''}`}
-              onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}
-              {...tapProps}
-            >
-              <ListChecks size={15} strokeWidth={2.5} /> {selectMode ? 'Done' : 'Select'}
-            </motion.button>
-          </div>
+          <span className="text-[.82rem] font-semibold text-muted tabular-nums flex-none">{list.length} total</span>
         )}
       </div>
-
-      {/* Bulk action bar — visible in select mode; actions apply to the checked codes. */}
-      {selectMode && qrcodes && qrcodes.length > 0 && (
-        <div className="card !mb-4 flex items-center gap-3 flex-wrap !py-3">
-          <label className="flex items-center gap-2 text-sm font-semibold cursor-pointer">
-            <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Select all QR codes" />
-            {selected.size > 0 ? `${selected.size} selected` : 'Select all'}
-          </label>
-          {bulkBusy && <Spinner size={16} />}
-          <div className="flex gap-2 ml-auto flex-wrap">
-            <motion.button className="btn btn-sm btn-danger" onClick={bulkMarkLost} disabled={selected.size === 0 || bulkBusy} {...tapProps}>
-              <Flag size={15} strokeWidth={2.5} /> Mark lost
-            </motion.button>
-            <motion.button className="btn btn-sm btn-success" onClick={bulkMarkFound} disabled={selected.size === 0 || bulkBusy} {...tapProps}>
-              <Check size={15} strokeWidth={2.5} /> Mark found
-            </motion.button>
-            <motion.button className="btn btn-sm btn-ghost !text-danger" onClick={bulkDelete} disabled={selected.size === 0 || bulkBusy} {...tapProps}>
-              <Trash2 size={15} strokeWidth={2.5} /> Delete
-            </motion.button>
-          </div>
-        </div>
-      )}
 
       {qrcodes && qrcodes.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
@@ -397,10 +366,11 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Search + status filter. Client-side over the owner's own codes; the
-          summary tiles above stay global so headline counts never shift. */}
+      {/* Unified toolbar: selection toggle, search, and status filter grouped in
+          one row. Client-side over the owner's own codes; the summary tiles above
+          stay global so headline counts never shift. Stacks on mobile. */}
       {qrcodes && qrcodes.length > 0 && (
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 mb-4">
           <label className="inp-icon flex-1 min-w-0" aria-label="Search your QR codes">
             <Search />
             <input
@@ -421,21 +391,54 @@ export default function Dashboard() {
               </button>
             )}
           </label>
-          <div className="flex gap-1.5 flex-wrap">
-            {FILTERS.map((f) => {
-              const n = f.key === 'ALL' ? list.length : list.filter(f.match).length;
-              return (
-                <motion.button
-                  key={f.key}
-                  type="button"
-                  className={`chip-toggle ${statusFilter === f.key ? 'chip-toggle-active' : ''}`}
-                  onClick={() => setStatusFilter(f.key)}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  {f.label} <span className="tabular-nums opacity-70">{n}</span>
-                </motion.button>
-              );
-            })}
+          <div className="flex gap-2.5">
+            <label className="inp-icon flex-1 sm:flex-none sm:w-44 min-w-0" aria-label="Filter by status">
+              <Filter />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="!mt-0"
+              >
+                {FILTERS.map((f) => {
+                  const n = f.key === 'ALL' ? list.length : list.filter(f.match).length;
+                  return (
+                    <option key={f.key} value={f.key}>
+                      {f.label} ({n})
+                    </option>
+                  );
+                })}
+              </select>
+            </label>
+            <motion.button
+              type="button"
+              className={`btn flex-none ${selectMode ? 'btn-primary' : ''}`}
+              onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}
+              {...tapProps}
+            >
+              <ListChecks size={16} strokeWidth={2.5} /> {selectMode ? 'Done' : 'Select'}
+            </motion.button>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk action bar — visible in select mode; actions apply to the checked codes. */}
+      {selectMode && qrcodes && qrcodes.length > 0 && (
+        <div className="card !mb-4 flex items-center gap-3 flex-wrap !py-3">
+          <label className="flex items-center gap-2 text-sm font-semibold cursor-pointer">
+            <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Select all QR codes" />
+            {selected.size > 0 ? `${selected.size} selected` : 'Select all'}
+          </label>
+          {bulkBusy && <Spinner size={16} />}
+          <div className="flex gap-2 ml-auto flex-wrap">
+            <motion.button className="btn btn-sm btn-danger" onClick={bulkMarkLost} disabled={selected.size === 0 || bulkBusy} {...tapProps}>
+              <Flag size={15} strokeWidth={2.5} /> Mark lost
+            </motion.button>
+            <motion.button className="btn btn-sm btn-success" onClick={bulkMarkFound} disabled={selected.size === 0 || bulkBusy} {...tapProps}>
+              <Check size={15} strokeWidth={2.5} /> Mark found
+            </motion.button>
+            <motion.button className="btn btn-sm btn-ghost !text-danger" onClick={bulkDelete} disabled={selected.size === 0 || bulkBusy} {...tapProps}>
+              <Trash2 size={15} strokeWidth={2.5} /> Delete
+            </motion.button>
           </div>
         </div>
       )}

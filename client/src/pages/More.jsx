@@ -1,6 +1,6 @@
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ChevronRight, LogOut, FileText, ShieldCheck } from 'lucide-react';
+import { ChevronRight, LogOut, FileText, ShieldCheck, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useConfirm } from '../components/ConfirmDialog.jsx';
 import { Icon, useNavItems, usePendingRequests, NavBadge, PRIMARY_COUNT } from '../components/nav.jsx';
@@ -20,6 +20,9 @@ export default function More() {
   const items = useNavItems();
   const pending = usePendingRequests();
   const secondary = items.slice(PRIMARY_COUNT);
+  // Back out to the previous page, falling back to the dashboard when there's no
+  // in-app history to pop.
+  const goBack = () => (window.history.length > 1 ? navigate(-1) : navigate('/dashboard'));
 
   function onLogout() {
     confirm({
@@ -37,6 +40,9 @@ export default function More() {
 
   return (
     <div className="w-full">
+      <motion.button type="button" onClick={goBack} className="btn btn-ghost btn-sm self-start mb-3" whileTap={{ scale: 0.98 }}>
+        <ArrowLeft size={16} strokeWidth={2.5} /> Back
+      </motion.button>
       <h1 className="mb-[1.1rem]">More</h1>
 
       <div className="card flex items-center gap-[.8rem]">

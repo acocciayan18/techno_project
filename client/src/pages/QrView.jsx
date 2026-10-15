@@ -127,45 +127,52 @@ export default function QrView() {
         <div className="card text-center flex flex-col items-center gap-4">
           <img className="w-[220px] max-w-full border border-border rounded-sm bg-white p-2 mx-auto" src={apiUrl(`/api/qr/${qrId}/image.png`)} alt={`QR ${qrId}`} />
           <p className="text-muted text-[.85rem] break-all">{url}</p>
-          <div className="flex gap-[.6rem] flex-wrap items-center justify-center">
-            <a className="btn btn-sm" href={apiUrl(`/api/qr/${qrId}/image.png`)} download={`${qrId}.png`}><Download size={16} strokeWidth={2.5} /> PNG</a>
-            <a className="btn btn-sm" href={apiUrl(`/api/qr/${qrId}/image.svg`)} download={`${qrId}.svg`}><FileCode size={16} strokeWidth={2.5} /> SVG</a>
-            <a className="btn btn-sm" href={url} target="_blank" rel="noreferrer"><ExternalLink size={16} strokeWidth={2.5} /> Open public page</a>
+          <div className="flex flex-wrap gap-2 items-center justify-center w-full">
+            <a className="btn btn-sm flex-1 min-w-[6.5rem] justify-center" href={apiUrl(`/api/qr/${qrId}/image.png`)} download={`${qrId}.png`}><Download size={16} strokeWidth={2.5} /> PNG</a>
+            <a className="btn btn-sm flex-1 min-w-[6.5rem] justify-center" href={apiUrl(`/api/qr/${qrId}/image.svg`)} download={`${qrId}.svg`}><FileCode size={16} strokeWidth={2.5} /> SVG</a>
+            <a className="btn btn-sm justify-center basis-full sm:basis-auto sm:flex-1 min-w-[6.5rem]" href={url} target="_blank" rel="noreferrer"><ExternalLink size={16} strokeWidth={2.5} /> Open public page</a>
           </div>
         </div>
 
         <div className="card">
           <h3 className="break-words">{item?.name || 'No item registered yet'}</h3>
-          {item?.category && <div className="chip-gold max-w-full truncate align-bottom">{item.category}</div>}
           {item?.description && <p className="break-words whitespace-pre-wrap">{item.description}</p>}
           {!item && <p className="text-muted">Register an item so finders know what this QR protects.</p>}
 
-          <div className="flex flex-wrap gap-[.45rem] mt-3">
-            <Link className="btn btn-sm" to={`/qr/${qrId}/item`}>{item ? 'Edit item & page' : 'Register item'}</Link>
-            {item && status !== 'LOST' && (
-              <motion.button className="btn btn-sm btn-danger" onClick={() => changeStatus('LOST')} disabled={isPending('status')} {...tapProps}>
-                {isPending('status') && <Spinner size={14} />} Mark as Lost
+          {/* Actions split into a primary row (edit + status) and a separated,
+              lower-emphasis destructive row so Delete can't crowd or overlap the
+              main actions. Buttons stretch to fill on mobile, size to content on
+              wider screens — they never overflow the card. */}
+          <div className="mt-4 flex flex-col gap-2.5">
+            <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
+              <Link className="btn btn-sm flex-1 sm:flex-none justify-center" to={`/qr/${qrId}/item`}>{item ? 'Edit item & page' : 'Register item'}</Link>
+              {item && status !== 'LOST' && (
+                <motion.button className="btn btn-sm btn-danger flex-1 sm:flex-none justify-center" onClick={() => changeStatus('LOST')} disabled={isPending('status')} {...tapProps}>
+                  {isPending('status') && <Spinner size={14} />} Mark as Lost
+                </motion.button>
+              )}
+              {item && status === 'LOST' && (
+                <motion.button className="btn btn-sm btn-success flex-1 sm:flex-none justify-center" onClick={() => changeStatus('RECOVERED')} disabled={isPending('status')} {...tapProps}>
+                  {isPending('status') && <Spinner size={14} />} Mark as Found
+                </motion.button>
+              )}
+              {item && status === 'RECOVERED' && (
+                <motion.button className="btn btn-sm flex-1 sm:flex-none justify-center" onClick={() => changeStatus('ACTIVE')} disabled={isPending('status')} {...tapProps}>
+                  {isPending('status') && <Spinner size={14} />} Reset to Active
+                </motion.button>
+              )}
+            </div>
+            <div className="pt-2.5 border-t border-border flex sm:justify-end">
+              <motion.button
+                className="btn btn-sm btn-ghost !text-danger w-full sm:w-auto justify-center"
+                onClick={askDelete}
+                disabled={status === 'LOST'}
+                title={status === 'LOST' ? 'Mark the item found before deleting' : 'Delete this QR code'}
+                {...tapProps}
+              >
+                <Trash2 size={15} strokeWidth={2.5} /> Delete QR code
               </motion.button>
-            )}
-            {item && status === 'LOST' && (
-              <motion.button className="btn btn-sm btn-success" onClick={() => changeStatus('RECOVERED')} disabled={isPending('status')} {...tapProps}>
-                {isPending('status') && <Spinner size={14} />} Mark as Found
-              </motion.button>
-            )}
-            {item && status === 'RECOVERED' && (
-              <motion.button className="btn btn-sm" onClick={() => changeStatus('ACTIVE')} disabled={isPending('status')} {...tapProps}>
-                {isPending('status') && <Spinner size={14} />} Reset to Active
-              </motion.button>
-            )}
-            <motion.button
-              className="btn btn-sm btn-ghost !text-danger"
-              onClick={askDelete}
-              disabled={status === 'LOST'}
-              title={status === 'LOST' ? 'Mark the item found before deleting' : 'Delete this QR code'}
-              {...tapProps}
-            >
-              <Trash2 size={15} strokeWidth={2.5} /> Delete
-            </motion.button>
+            </div>
           </div>
         </div>
       </div>

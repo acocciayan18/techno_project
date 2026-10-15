@@ -10,7 +10,7 @@ const FAQS = [
   {
     icon: Tag,
     q: 'How do I activate a QR code?',
-    a: 'Open Activate, enter the QR code printed on your sticker and the secret activation code that came with your product. No code? Switch to “I don’t have the code” to request manual admin review.',
+    a: 'Open Activate, enter the QR code printed on your sticker and the secret activation code that came with your product. No code? Switch to “Request Approval” to request manual admin review.',
   },
   {
     icon: Flag,

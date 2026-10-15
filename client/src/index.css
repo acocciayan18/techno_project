@@ -378,13 +378,13 @@
     padding: .3rem .6rem;
   }
 
-  /* Reusable accent chip (QR id, category tag). */
+  /* Reusable accent chip (QR id, short tag). */
   .chip-gold {
     @apply inline-block bg-accent-weak text-primary rounded-full font-semibold;
     font-size: .72rem;
     padding: .2rem .65rem;
     letter-spacing: .02em;
-    /* Never let a long category blow past its container — cap and ellipsize. */
+    /* Never let a long label blow past its container — cap and ellipsize. */
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
