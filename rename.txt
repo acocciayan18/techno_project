@@ -1,4 +1,4 @@
-DO NOT READ THIS FILE
+
 
 Account Management
 Full name: Required, validate length and characters.

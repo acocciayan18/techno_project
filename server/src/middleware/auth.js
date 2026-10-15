@@ -1,5 +1,5 @@
 import { verifyToken } from '../lib/jwt.js';
-import { findByUid, normalizeSettings } from '../services/users.js';
+import { findByUid, getSession, normalizeSettings, touchSession } from '../services/users.js';
 
 // Requires a valid Bearer JWT. Attaches req.user = { uid, username, role, name,
 // settings }. Re-checks the live user every request so a deleted or disabled
@@ -20,12 +20,22 @@ export async function requireAuth(req, res, next) {
     if ((payload.tv || 0) !== (user.tokenVersion || 0)) {
       return res.status(401).json({ error: 'Session expired. Please log in again.' });
     }
+    if (payload.jti) {
+      const session = await getSession(payload.jti);
+      if (!session || session.uid !== user.uid || session.revokedAt || (session.expiresAt && Date.parse(session.expiresAt) <= Date.now())) {
+        return res.status(401).json({ error: 'Session revoked. Please log in again.' });
+      }
+      touchSession(payload.jti).catch((e) => console.error('[auth] session timestamp update failed', e?.message || e));
+    }
     req.user = {
       uid: user.uid,
       username: user.username,
       role: user.role,
       name: user.name,
+      recoveryEmail: user.recoveryEmail || null,
+      recoveryEmailVerified: !!user.recoveryEmailVerified,
       settings: normalizeSettings(user.settings),
+      sessionId: payload.jti || null,
     };
     next();
   } catch {

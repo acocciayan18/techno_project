@@ -4,11 +4,12 @@ import { validate } from '../middleware/validate.js';
 import { requireAuth } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 import { signToken } from '../lib/jwt.js';
-import { sendPasswordReset } from '../lib/mailer.js';
+import { sendPasswordReset, sendEmailVerification, sendSecurityNotice } from '../lib/mailer.js';
 import { appBaseUrl } from '../lib/qrimage.js';
 import { verifyCaptcha } from '../lib/captcha.js';
 import { canonicalizeEmail } from '../lib/email.js';
 import { publishToUser, publishToAdmins } from '../lib/events.js';
+import * as auditLog from '../services/auditLog.js';
 import { AUTH, TEXT_LIMITS, RATE_LIMIT, ABUSE } from '../lib/constants.js';
 import {
   createUser,
@@ -27,6 +28,16 @@ import {
   findByResetToken,
   resetPassword,
   updateSettings,
+  updateUserRecoveryEmail,
+  createSession,
+  getSession,
+  listSessions,
+  revokeSession,
+  revokeOtherSessions,
+  revokeAllSessions,
+  issueEmailVerification,
+  findByEmailVerificationToken,
+  confirmEmailVerification,
 } from '../services/users.js';
 import {
   signupSignals,
@@ -51,6 +62,8 @@ const resetLimiter = rateLimit({ ...RATE_LIMIT.RESET, bucket: 'reset', keyBy: 'i
 // the auth router, which has no global per-account cap like the owner/admin routers,
 // so this stops a hammer on the settings write / profile read. Keyed per account.
 const meLimiter = rateLimit({ ...RATE_LIMIT.ME, bucket: 'me', keyBy: 'user' });
+const passwordChangeLimiter = rateLimit({ ...RATE_LIMIT.PASSWORD_CHANGE, bucket: 'password-change', keyBy: 'user' });
+const emailVerifyLimiter = rateLimit({ ...RATE_LIMIT.EMAIL_VERIFY, bucket: 'email-verify', keyBy: 'user' });
 
 // Shared password rule: 8+ chars with at least one letter and one number, capped
 // at PASSWORD_MAX (bcrypt only hashes the first 72 bytes — reject absurd input
@@ -169,7 +182,17 @@ router.post('/register', registerLimiter, validate(registerSchema), async (req, 
     }
 
     const user = await createUser({ name, username, password, recoveryEmail: recoveryEmail || null, acceptedTerms });
-    const token = signToken({ uid: user.uid, role: user.role, tv: user.tokenVersion || 0 });
+    if (user.recoveryEmail) {
+      const verificationToken = await issueEmailVerification(user.uid);
+      await sendEmailVerification({
+        to: user.recoveryEmail,
+        name: user.name,
+        link: `${appBaseUrl()}/verify-email?token=${encodeURIComponent(verificationToken)}`,
+        minutes: Math.round(AUTH.EMAIL_VERIFY_TTL_MS / 60000),
+      });
+    }
+    const sessionId = await createSession({ uid: user.uid, username: user.username, role: user.role, userAgent: req.get('user-agent'), ip: req.ip });
+    const token = signToken({ uid: user.uid, role: user.role, tv: user.tokenVersion || 0, jti: sessionId });
     // A new account appears in the admin users table + the registered-users stat.
     publishToAdmins(['admin/users', 'admin/stats']);
     res.status(201).json({ token, user: publicUser(user) });
@@ -205,7 +228,8 @@ router.post('/login', loginLimiter, validate(loginSchema), async (req, res, next
     }
 
     await clearLoginThrottle(user.uid);
-    const token = signToken({ uid: user.uid, role: user.role, tv: user.tokenVersion || 0 });
+    const sessionId = await createSession({ uid: user.uid, username: user.username, role: user.role, userAgent: req.get('user-agent'), ip: req.ip });
+    const token = signToken({ uid: user.uid, role: user.role, tv: user.tokenVersion || 0, jti: sessionId });
     res.json({ token, user: publicUser(user) });
   } catch (e) {
     next(e);
@@ -214,6 +238,94 @@ router.post('/login', loginLimiter, validate(loginSchema), async (req, res, next
 
 router.get('/me', requireAuth, meLimiter, (req, res) => {
   res.json({ user: req.user });
+});
+
+router.get('/sessions', requireAuth, meLimiter, async (req, res, next) => {
+  try {
+    const sessions = await listSessions(req.user.uid);
+    res.json({ sessions: sessions.map((s) => ({ ...s, current: s.id === req.user.sessionId })) });
+  } catch (e) { next(e); }
+});
+
+router.delete('/sessions/:id', requireAuth, meLimiter, async (req, res, next) => {
+  try {
+    if (req.params.id === req.user.sessionId) return res.status(400).json({ error: 'Use log out to end the current session.' });
+    const revoked = await revokeSession(req.params.id, req.user.uid);
+    if (!revoked) return res.status(404).json({ error: 'Session not found.' });
+    await auditLog.record({ actorUid: req.user.uid, actorUsername: req.user.username, action: auditLog.AUDIT_ACTION.SESSION_REVOKE, targetUid: req.user.uid, targetUsername: req.user.username, details: { scope: 'single' } });
+    res.json({ revoked: true });
+  } catch (e) { next(e); }
+});
+
+router.post('/sessions/revoke-others', requireAuth, meLimiter, async (req, res, next) => {
+  try {
+    await revokeOtherSessions(req.user.uid, req.user.sessionId);
+    await auditLog.record({ actorUid: req.user.uid, actorUsername: req.user.username, action: auditLog.AUDIT_ACTION.SESSION_REVOKE, targetUid: req.user.uid, targetUsername: req.user.username, details: { scope: 'other_sessions' } });
+    res.json({ revoked: true });
+  } catch (e) { next(e); }
+});
+
+router.post('/sessions/revoke-all', requireAuth, meLimiter, async (req, res, next) => {
+  try {
+    await revokeAllSessions(req.user.uid);
+    await auditLog.record({ actorUid: req.user.uid, actorUsername: req.user.username, action: auditLog.AUDIT_ACTION.SESSION_REVOKE, targetUid: req.user.uid, targetUsername: req.user.username, details: { scope: 'all' } });
+    res.json({ revoked: true });
+  } catch (e) { next(e); }
+});
+
+const passwordChangeSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  password,
+  confirmPassword: z.string(),
+}).refine((d) => d.password === d.confirmPassword, { message: 'Passwords do not match', path: ['confirmPassword'] });
+
+router.put('/me/password', requireAuth, passwordChangeLimiter, validate(passwordChangeSchema), async (req, res, next) => {
+  try {
+    const user = await findByUid(req.user.uid);
+    if (!user || !(await verifyPassword(user, req.body.currentPassword))) {
+      return res.status(401).json({ error: 'Current password is incorrect.' });
+    }
+    if (await verifyPassword(user, req.body.password)) {
+      return res.status(400).json({ error: 'Choose a password different from your current one.' });
+    }
+    await resetPassword(user.uid, req.body.password);
+    await revokeOtherSessions(user.uid, req.user.sessionId);
+    await auditLog.record({ actorUid: req.user.uid, actorUsername: req.user.username, action: auditLog.AUDIT_ACTION.PASSWORD_CHANGE, targetUid: user.uid, targetUsername: user.username });
+    if (user.recoveryEmail) await sendSecurityNotice({ to: user.recoveryEmail, name: user.name, kind: 'password' });
+    res.json({ user: publicUser(await findByUid(user.uid)) });
+  } catch (e) { next(e); }
+});
+
+const verificationSchema = z.object({
+  recoveryEmail: z.string().trim().toLowerCase().email('Enter a valid email'),
+  currentPassword: z.string().min(1, 'Current password is required'),
+});
+router.post('/me/recovery-email', requireAuth, emailVerifyLimiter, validate(verificationSchema), async (req, res, next) => {
+  try {
+    const existing = await findByRecoveryEmailCanonical(req.body.recoveryEmail);
+    if (existing && existing.uid !== req.user.uid) return res.status(409).json({ error: 'That recovery email is already in use.' });
+    const user = await findByUid(req.user.uid);
+    if (!user || !(await verifyPassword(user, req.body.currentPassword))) {
+      return res.status(401).json({ error: 'Current password is incorrect.' });
+    }
+    if (user.recoveryEmailVerificationRequestedAt && Date.now() - Date.parse(user.recoveryEmailVerificationRequestedAt) < AUTH.EMAIL_VERIFY_COOLDOWN_MS) {
+      return res.status(429).json({ error: 'Please wait before requesting another verification email.' });
+    }
+    await updateUserRecoveryEmail(req.user.uid, req.body.recoveryEmail);
+    const token = await issueEmailVerification(req.user.uid);
+    await sendEmailVerification({ to: req.body.recoveryEmail, name: user.name, link: `${appBaseUrl()}/verify-email?token=${encodeURIComponent(token)}`, minutes: 60 });
+    await auditLog.record({ actorUid: req.user.uid, actorUsername: req.user.username, action: auditLog.AUDIT_ACTION.EMAIL_CHANGE, targetUid: user.uid, targetUsername: user.username });
+    res.json({ user: publicUser(await findByUid(req.user.uid)) });
+  } catch (e) { next(e); }
+});
+
+router.get('/verify-email', async (req, res, next) => {
+  try {
+    const user = await findByEmailVerificationToken(req.query.token);
+    if (!user) return res.status(400).json({ error: 'This verification link is invalid or has expired.' });
+    await confirmEmailVerification(user.uid);
+    res.json({ message: 'Recovery email verified.' });
+  } catch (e) { next(e); }
 });
 
 // Update the signed-in user's synced preferences (e.g. theme). Partial: only the

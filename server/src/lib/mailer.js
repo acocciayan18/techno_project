@@ -15,7 +15,7 @@
 //   MAIL_FROM_NAME    optional display name (defaults to APP_NAME)
 //   MAIL_REPLY_TO     optional Reply-To address (support inbox)
 
-import { passwordResetEmail } from './emailTemplates.js';
+import { passwordResetEmail, verificationEmail, securityNoticeEmail } from './emailTemplates.js';
 
 const APP_NAME = 'TagBack';
 const BREVO_ENDPOINT = 'https://api.brevo.com/v3/smtp/email';
@@ -81,5 +81,20 @@ export async function sendPasswordReset({ to, link, name = '', minutes = 60 }) {
         '================================================================\n'
     );
   }
+
   return sent;
+}
+
+async function sendTemplate({ to, template, fallbackLabel }) {
+  const sent = await transport({ to, ...template });
+  if (!sent) console.log(`\n========== ${fallbackLabel} (dev: no mailer configured) ==========\n  to: ${to}\n  ${template.text}\n================================================================\n`);
+  return sent;
+}
+
+export function sendEmailVerification({ to, link, name = '', minutes = 60 }) {
+  return sendTemplate({ to, template: verificationEmail({ link, name, minutes }), fallbackLabel: 'EMAIL VERIFICATION' });
+}
+
+export function sendSecurityNotice({ to, name = '', kind = 'password' }) {
+  return sendTemplate({ to, template: securityNoticeEmail({ name, kind }), fallbackLabel: 'SECURITY NOTICE' });
 }

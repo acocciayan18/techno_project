@@ -5,6 +5,7 @@ import { COL, ROLE, AUTH, LEGAL } from '../lib/constants.js';
 import { canonicalizeEmail } from '../lib/email.js';
 
 const col = () => db.collection(COL.USERS);
+const sessions = () => db.collection(COL.SESSIONS);
 
 // Only these fields are ever sent outside the server. Everything else
 // (passwordHash, reset tokens, attempt counters) stays internal.
@@ -26,6 +27,7 @@ export function publicUser(u) {
     disabled: !!u.disabled,
     settings: normalizeSettings(u.settings),
     createdAt: u.createdAt || null,
+    recoveryEmailVerified: !!u.recoveryEmailVerified,
   };
 }
 
@@ -42,6 +44,7 @@ export function adminUserDetail(u) {
     lockedUntil: u.lockedUntil || null,
     termsVersion: u.termsVersion || null,
     termsAcceptedAt: u.termsAcceptedAt || null,
+    recoveryEmailVerified: !!u.recoveryEmailVerified,
   };
 }
 
@@ -97,6 +100,7 @@ export async function createUser({ username, password, name, recoveryEmail, role
     // Alias-folded form of the recovery email, for duplicate-account detection.
     // Stored alongside the real address (never replaces it).
     recoveryEmailCanonical: recoveryEmail ? canonicalizeEmail(recoveryEmail) : null,
+    recoveryEmailVerified: false,
     settings: { ...DEFAULT_SETTINGS },
     disabled: false,
     failedAttempts: 0,
@@ -171,6 +175,14 @@ export async function updateSettings(uid, patch) {
   return { ...user, settings };
 }
 
+export async function updateUserRecoveryEmail(uid, recoveryEmail) {
+  await col().doc(uid).update({
+    recoveryEmail: String(recoveryEmail).toLowerCase(),
+    recoveryEmailCanonical: canonicalizeEmail(recoveryEmail),
+    recoveryEmailVerified: false,
+  });
+}
+
 // ---- Account enable / disable (admin) --------------------------------------
 
 export async function setDisabled(uid, disabled) {
@@ -192,6 +204,7 @@ export async function adminUpdateUser(uid, { name, username, recoveryEmail, pass
   if (recoveryEmail !== undefined) {
     patch.recoveryEmail = recoveryEmail ? String(recoveryEmail).toLowerCase() : null;
     patch.recoveryEmailCanonical = recoveryEmail ? canonicalizeEmail(recoveryEmail) : null;
+    patch.recoveryEmailVerified = false;
   }
   if (password !== undefined) {
     patch.passwordHash = await bcrypt.hash(password, 10);
@@ -199,10 +212,76 @@ export async function adminUpdateUser(uid, { name, username, recoveryEmail, pass
     patch.lockedUntil = null;
     // Invalidate every JWT issued before this password change.
     patch.tokenVersion = FieldValue.increment(1);
+    patch.resetTokenHash = null;
+    patch.resetExpires = null;
+    patch.resetRequestedAt = null;
   }
+
   if (Object.keys(patch).length === 0) return findByUid(uid);
   await col().doc(uid).update(patch);
   return findByUid(uid);
+}
+
+export async function createSession({ uid, username, role, userAgent = '', ip = '' }) {
+  const ref = sessions().doc();
+  const now = new Date().toISOString();
+  await ref.set({ uid, username, role, userAgent: String(userAgent).slice(0, 300), ip: String(ip).slice(0, 80), createdAt: now, lastSeenAt: now, expiresAt: new Date(Date.now() + AUTH.SESSION_TTL_MS).toISOString(), revokedAt: null });
+  return ref.id;
+}
+
+export async function getSession(id) {
+  if (!id) return null;
+  const doc = await sessions().doc(id).get();
+  return doc.exists ? { id: doc.id, ...doc.data() } : null;
+}
+
+export async function touchSession(id) {
+  if (id) await sessions().doc(id).update({ lastSeenAt: new Date().toISOString() });
+}
+
+export async function listSessions(uid) {
+  const snap = await sessions().where('uid', '==', uid).get();
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    .filter((s) => !s.revokedAt && (!s.expiresAt || Date.parse(s.expiresAt) > Date.now()))
+    .sort((a, b) => (b.lastSeenAt || '').localeCompare(a.lastSeenAt || ''))
+    .map(({ id, uid: _uid, role: _role, revokedAt: _revokedAt, ...safe }) => ({ id, ...safe }));
+}
+
+export async function revokeSession(id, uid) {
+  const session = await getSession(id);
+  if (!session || session.uid !== uid) return false;
+  await sessions().doc(id).update({ revokedAt: new Date().toISOString() });
+  return true;
+}
+
+export async function revokeOtherSessions(uid, keepId) {
+  const snap = await sessions().where('uid', '==', uid).get();
+  const now = new Date().toISOString();
+  await Promise.all(snap.docs.filter((d) => d.id !== keepId && !d.data().revokedAt).map((d) => sessions().doc(d.id).update({ revokedAt: now })));
+}
+
+export async function revokeAllSessions(uid) {
+  const snap = await sessions().where('uid', '==', uid).get();
+  const now = new Date().toISOString();
+  await Promise.all(snap.docs.filter((d) => !d.data().revokedAt).map((d) => sessions().doc(d.id).update({ revokedAt: now })));
+}
+
+export async function issueEmailVerification(uid) {
+  const raw = crypto.randomBytes(32).toString('hex');
+  await col().doc(uid).update({ recoveryEmailVerificationHash: hashToken(raw), recoveryEmailVerificationExpires: new Date(Date.now() + AUTH.EMAIL_VERIFY_TTL_MS).toISOString(), recoveryEmailVerificationRequestedAt: new Date().toISOString(), recoveryEmailVerified: false });
+  return raw;
+}
+
+export async function findByEmailVerificationToken(rawToken) {
+  if (!rawToken) return null;
+  const snap = await col().where('recoveryEmailVerificationHash', '==', hashToken(rawToken)).get();
+  if (snap.empty) return null;
+  const user = { uid: snap.docs[0].id, ...snap.docs[0].data() };
+  return user.recoveryEmailVerificationExpires && Date.parse(user.recoveryEmailVerificationExpires) > Date.now() ? user : null;
+}
+
+export async function confirmEmailVerification(uid) {
+  await col().doc(uid).update({ recoveryEmailVerified: true, recoveryEmailVerificationHash: null, recoveryEmailVerificationExpires: null, recoveryEmailVerificationRequestedAt: null });
 }
 
 // ---- Password reset ---------------------------------------------------------

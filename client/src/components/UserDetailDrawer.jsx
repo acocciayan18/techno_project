@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Pencil, Check, Ban, Power, ShieldCheck, Clock, User, AtSign, Mail, KeyRound } from 'lucide-react';
-import { api } from '../lib/api.js';
+import { api, setToken } from '../lib/api.js';
 import { useResource } from '../store/dataStore.js';
 import { usePending } from '../lib/useAsync.js';
 import { useConfirm } from './ConfirmDialog.jsx';
@@ -27,6 +27,12 @@ function describeAction(log) {
       return { text: 'Disabled account', Icon: Ban, tone: 'text-danger' };
     case 'user.enable':
       return { text: 'Enabled account', Icon: Check, tone: 'text-success' };
+    case 'security.password_change':
+      return { text: 'Changed password', Icon: KeyRound, tone: 'text-danger' };
+    case 'security.email_change':
+      return { text: 'Changed recovery email', Icon: Mail, tone: 'text-primary' };
+    case 'security.session_revoke':
+      return { text: 'Revoked sessions', Icon: ShieldCheck, tone: 'text-warning' };
     default:
       return { text: log.action, Icon: Clock, tone: 'text-muted' };
   }
@@ -48,14 +54,16 @@ function FieldError({ msg }) {
 
 // Edit form for one account. Starts from the loaded user; only actually-changed
 // fields are sent. Password is optional (leave blank to keep the current one).
-function EditForm({ user, onCancel, onSaved }) {
+function EditForm({ user, isSelf, onCancel, onSaved }) {
   const { run, isPending } = usePending();
+  const confirm = useConfirm();
   const [form, setForm] = useState({
     name: user.name || '',
     username: user.username || '',
     recoveryEmail: user.recoveryEmail || '',
     password: '',
     confirmPassword: '',
+    currentPassword: '',
   });
   const [errors, setErrors] = useState({});
 
@@ -76,6 +84,10 @@ function EditForm({ user, onCancel, onSaved }) {
       if (pErr) next.password = pErr;
       if (form.confirmPassword !== form.password) next.confirmPassword = 'Passwords do not match';
     }
+    const normalizedEmail = form.recoveryEmail.trim().toLowerCase();
+    if (isSelf && (form.password || normalizedEmail !== (user.recoveryEmail || '')) && !form.currentPassword) {
+      next.currentPassword = 'Current password is required for sensitive changes';
+    }
     return next;
   }
 
@@ -89,7 +101,17 @@ function EditForm({ user, onCancel, onSaved }) {
     if (username !== (user.username || '')) patch.username = username;
     if (email !== (user.recoveryEmail || '')) patch.recoveryEmail = email;
     if (form.password) patch.password = form.password;
+    if (isSelf && (form.password || email !== (user.recoveryEmail || ''))) patch.currentPassword = form.currentPassword;
     return patch;
+  }
+
+  function cancel() {
+    const changed = JSON.stringify({ ...form, password: '', confirmPassword: '', currentPassword: '' }) !== JSON.stringify({
+      name: user.name || '', username: user.username || '', recoveryEmail: user.recoveryEmail || '',
+      password: '', confirmPassword: '', currentPassword: '',
+    });
+    if (!changed) return onCancel();
+    confirm({ title: 'Discard unsaved changes?', description: 'Your edits will be lost.', confirmLabel: 'Discard', variant: 'warning', onConfirm: onCancel });
   }
 
   function submit(e) {
@@ -106,7 +128,8 @@ function EditForm({ user, onCancel, onSaved }) {
     }
     return run('save', async () => {
       try {
-        const { user: updated } = await api.put(`/admin/users/${user.uid}`, patch);
+        const { user: updated, token } = await api.put(`/admin/users/${user.uid}`, patch);
+        if (token) setToken(token);
         notify.success(`@${updated.username} updated.`);
         onSaved?.();
       } catch (err) {
@@ -174,8 +197,17 @@ function EditForm({ user, onCancel, onSaved }) {
         </>
       )}
 
+      {isSelf && (form.password || form.recoveryEmail.trim().toLowerCase() !== (user.recoveryEmail || '')) && (
+        <>
+          <label className="field-label">Current password
+            <PasswordInput value={form.currentPassword} onChange={set('currentPassword')} placeholder="********" invalid={!!errors.currentPassword} />
+          </label>
+          <FieldError msg={errors.currentPassword} />
+        </>
+      )}
+
       <div className="flex gap-2 justify-end mt-2">
-        <motion.button type="button" className="btn btn-sm" onClick={onCancel} disabled={busy} {...tapProps}>Cancel</motion.button>
+        <motion.button type="button" className="btn btn-sm" onClick={cancel} disabled={busy} {...tapProps}>Cancel</motion.button>
         <motion.button type="submit" className="btn btn-sm btn-primary" disabled={busy} {...tapProps}>
           {busy ? <Spinner size={14} /> : <Check size={15} strokeWidth={2.5} />}
           {busy ? 'Saving…' : 'Save changes'}
@@ -266,7 +298,7 @@ function DrawerBody({ uid, meUid, onChanged }) {
 
         {editing ? (
           <div className="card !mb-0">
-            <EditForm user={user} onCancel={() => setEditing(false)} onSaved={async () => { setEditing(false); await afterChange(); }} />
+            <EditForm user={user} isSelf={isSelf} onCancel={() => setEditing(false)} onSaved={async () => { setEditing(false); await afterChange(); }} />
           </div>
         ) : (
           <>

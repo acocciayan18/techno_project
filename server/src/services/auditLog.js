@@ -17,6 +17,9 @@ export const AUDIT_ACTION = {
   USER_UPDATE: 'user.update',
   USER_DISABLE: 'user.disable',
   USER_ENABLE: 'user.enable',
+  PASSWORD_CHANGE: 'security.password_change',
+  EMAIL_CHANGE: 'security.email_change',
+  SESSION_REVOKE: 'security.session_revoke',
 };
 
 // Append one admin-action record. Deliberately swallows its own errors and never

@@ -84,6 +84,8 @@ export const RATE_LIMIT = {
   REGISTER: { windowMs: 60 * 60 * 1000, max: 30 }, // new accounts/IP/hour — blunts mass sign-up
   FORGOT: { windowMs: 15 * 60 * 1000, max: 30 }, // reset-email requests/IP — blunts email bombing + SMTP abuse
   RESET: { windowMs: 15 * 60 * 1000, max: 30 }, // reset-token submissions/IP
+  PASSWORD_CHANGE: { windowMs: 15 * 60 * 1000, max: 10 },
+  EMAIL_VERIFY: { windowMs: 15 * 60 * 1000, max: 10 },
 
   // Authenticated owner actions — per user.
   ACTIVATE: { windowMs: 15 * 60 * 1000, max: 40 }, // activation attempts/user (per-QR lockout is the brute-force guard)
@@ -145,7 +147,10 @@ export const AUTH = {
   // a legit user who clicks "send" twice just reuses the link already in their inbox.
   RESET_REQUEST_COOLDOWN_MS: 60 * 1000, // 1 minute
   PASSWORD_MAX: 200, // hard ceiling — bcrypt only hashes the first 72 bytes; cap input defensively
-  USERNAME_RE: /^[a-z0-9_]{3,20}$/, // lowercase letters, digits, underscore
+  USERNAME_RE: /^[a-z0-9_]{3,20}$/,
+  SESSION_TTL_MS: 7 * 24 * 60 * 60 * 1000,
+  EMAIL_VERIFY_TTL_MS: 60 * 60 * 1000,
+  EMAIL_VERIFY_COOLDOWN_MS: 60 * 1000, // lowercase letters, digits, underscore
 };
 
 // Account-abuse / multi-account prevention. These tune the layered signup guard
@@ -185,4 +190,5 @@ export const COL = {
   COUNTERS: 'counters',
   NOTIFICATIONS: 'notifications',
   ADMIN_LOGS: 'adminLogs',
+  SESSIONS: 'sessions',
 };

@@ -146,3 +146,27 @@ export function passwordResetEmail({ link, minutes = 60, name = '' } = {}) {
 
   return { subject, html, text };
 }
+
+export function verificationEmail({ link, minutes = 60, name = '' } = {}) {
+  const first = String(name || '').trim().split(/\s+/)[0] || '';
+  const greeting = first ? `Hi ${esc(first)},` : 'Hi,';
+  const safeLink = esc(link);
+  const window = `${minutes} minute${minutes === 1 ? '' : 's'}`;
+  const subject = `Verify your ${APP_NAME} recovery email`;
+  const bodyHtml = `<h1 class="tb-ink" style="margin:0 0 14px;font:700 22px/1.3 sans-serif;color:${INK};">Verify your recovery email</h1>
+    <p class="tb-ink" style="margin:0 0 10px;color:${INK};">${greeting}</p>
+    <p class="tb-muted" style="margin:0 0 24px;color:${MUTED};">Confirm this email address for your ${APP_NAME} account. The link expires in <strong>${window}</strong>.</p>
+    <a class="tb-btn" href="${safeLink}" style="display:inline-block;padding:14px 30px;color:#fff;background:${BRAND};border-radius:10px;text-decoration:none;">Verify recovery email</a>
+    <p class="tb-muted" style="margin:24px 0 0;color:${MUTED};">If you did not request this change, you can ignore this message.</p>`;
+  return { subject, html: shell({ preheader: subject, bodyHtml }), text: `${greeting}\n\nVerify your recovery email:\n${link}\n\nThis link expires in ${window}.` };
+}
+
+export function securityNoticeEmail({ name = '', kind = 'password' } = {}) {
+  const first = String(name || '').trim().split(/\s+/)[0] || '';
+  const subject = `${APP_NAME} security notification`;
+  const change = kind === 'email' ? 'recovery email' : 'password';
+  const text = `Hi${first ? ` ${first}` : ''},\n\nYour ${change} was changed. If you did not make this change, contact an administrator immediately.\n\n, ${APP_NAME}`;
+  const bodyHtml = `<h1 class="tb-ink" style="margin:0 0 14px;font:700 22px/1.3 sans-serif;color:${INK};">Security notification</h1>
+    <p class="tb-muted" style="margin:0;color:${MUTED};">${esc(text).replace(/\n/g, '<br>')}</p>`;
+  return { subject, html: shell({ preheader: subject, bodyHtml }), text };
+}

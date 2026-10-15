@@ -14,6 +14,9 @@ import * as contactService from '../services/contacts.js';
 import * as notificationService from '../services/notifications.js';
 import * as auditLog from '../services/auditLog.js';
 import { publishToUser, publishToAdmins, kickUser } from '../lib/events.js';
+import { sendSecurityNotice, sendEmailVerification } from '../lib/mailer.js';
+import { appBaseUrl } from '../lib/qrimage.js';
+import { signToken } from '../lib/jwt.js';
 
 const router = Router();
 router.use(requireAuth, requireAdmin);
@@ -282,6 +285,7 @@ const adminUserPatchSchema = z
       .regex(/[A-Za-z]/, 'Password must contain a letter')
       .regex(/[0-9]/, 'Password must contain a number')
       .optional(),
+    currentPassword: z.string().min(1).optional(),
   })
   .refine((d) => Object.keys(d).length > 0, { message: 'No changes provided' });
 
@@ -291,7 +295,13 @@ router.put('/users/:uid', validate(adminUserPatchSchema), async (req, res, next)
     const target = await userService.findByUid(uid);
     if (!target) return res.status(404).json({ error: 'User not found' });
 
-    const { name, username, recoveryEmail, password } = req.body;
+    const { name, username, recoveryEmail, password, currentPassword } = req.body;
+    if (uid === req.user.uid && (password !== undefined || recoveryEmail !== undefined)) {
+      const actor = await userService.findByUid(req.user.uid);
+      if (!currentPassword || !(await userService.verifyPassword(actor, currentPassword))) {
+        return res.status(401).json({ error: 'Current password is incorrect.', details: [{ path: 'currentPassword', message: 'Current password is incorrect.' }] });
+      }
+    }
 
     // Uniqueness guards — a changed username / recovery email must not collide
     // with a DIFFERENT account (matching the user's own current value is fine).
@@ -302,7 +312,7 @@ router.put('/users/:uid', validate(adminUserPatchSchema), async (req, res, next)
       }
     }
     if (recoveryEmail) {
-      const existing = await userService.findByRecoveryEmail(recoveryEmail);
+      const existing = (await userService.findByRecoveryEmailCanonical(recoveryEmail)) || (await userService.findByRecoveryEmail(recoveryEmail));
       if (existing && existing.uid !== uid) {
         return res.status(409).json({ error: 'That recovery email is already in use' });
       }
@@ -328,6 +338,16 @@ router.put('/users/:uid', validate(adminUserPatchSchema), async (req, res, next)
         details: { fields: changed },
       });
     }
+    if (changed.includes('password')) {
+      if (uid === req.user.uid) await userService.revokeOtherSessions(uid, req.user.sessionId);
+      else await userService.revokeAllSessions(uid);
+      if (updated.recoveryEmail) await sendSecurityNotice({ to: updated.recoveryEmail, name: updated.name, kind: 'password' });
+    }
+    if (changed.includes('recoveryEmail') && updated.recoveryEmail) {
+      const verificationToken = await userService.issueEmailVerification(uid);
+      if (target.recoveryEmail) await sendSecurityNotice({ to: target.recoveryEmail, name: updated.name, kind: 'email' });
+      await sendEmailVerification({ to: updated.recoveryEmail, name: updated.name, link: `${appBaseUrl()}/verify-email?token=${encodeURIComponent(verificationToken)}`, minutes: 60 });
+    }
 
     // Refresh every admin's user table + any open detail drawer for this account.
     publishToAdmins(['admin/users']);
@@ -340,7 +360,11 @@ router.put('/users/:uid', validate(adminUserPatchSchema), async (req, res, next)
     } else {
       publishToUser(uid, ['me']);
     }
-    res.json({ user: userService.adminUserDetail(updated), changed });
+    const response = { user: userService.adminUserDetail(updated), changed };
+    if (uid === req.user.uid && changed.includes('password')) {
+      response.token = signToken({ uid, role: updated.role, tv: updated.tokenVersion || 0, jti: req.user.sessionId });
+    }
+    res.json(response);
   } catch (e) {
     next(e);
   }
