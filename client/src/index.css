@@ -135,6 +135,12 @@
     transition: border-color .15s ease, box-shadow .15s ease;
   }
   textarea { min-height: 100px; resize: vertical; }
+  /* Mobile Safari/Chrome auto-zoom on focus when a field's font-size is < 16px.
+     Fields inherit the 15px body size, so bump them to 16px on small screens
+     only — desktop keeps the 15px scale. */
+  @media (max-width: 767px) {
+    input, textarea, select { font-size: 16px; }
+  }
   input::placeholder, textarea::placeholder { @apply text-muted-2; }
   input:focus, textarea:focus, select:focus {
     @apply outline-none border-primary;

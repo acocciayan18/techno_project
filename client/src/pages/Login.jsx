@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { User } from 'lucide-react';
+import { User, Home } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { tapProps } from '../components/motion.jsx';
 import Spinner from '../components/Spinner.jsx';
@@ -33,6 +33,9 @@ export default function Login() {
 
   return (
     <div className="form-card">
+      <Link to="/" className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted hover:text-ink mb-4">
+        <Home size={16} strokeWidth={2} /> Home
+      </Link>
       <div className="form-head">
         <h1>Welcome back</h1>
         <p>Log in to manage your tags.</p>
@@ -47,6 +50,7 @@ export default function Login() {
               autoComplete="username"
               autoCapitalize="none"
               spellCheck="false"
+              placeholder="Enter your username"
               required
             />
           </div>
@@ -61,6 +65,7 @@ export default function Login() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
+            placeholder="Enter your password"
             required
           />
         </div>

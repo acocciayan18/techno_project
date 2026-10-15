@@ -30,17 +30,14 @@ export default function More() {
       icon: LogOut,
       onConfirm: () => {
         logout();
-        navigate('/login', { replace: true });
+        navigate('/', { replace: true });
       },
     });
   }
 
   return (
-    <div className="max-w-[640px]">
-      <div className="flex items-center justify-between gap-3 mb-[1.1rem]">
-        <h1>More</h1>
-        <ThemeToggle variant="icon" />
-      </div>
+    <div className="w-full">
+      <h1 className="mb-[1.1rem]">More</h1>
 
       <div className="card flex items-center gap-[.8rem]">
         <div className="flex-none w-[46px] h-[46px] grid place-items-center bg-primary text-white font-display font-bold text-[1.25rem] rounded-[12px] shadow-brutal-sm" aria-hidden="true">
@@ -58,7 +55,7 @@ export default function More() {
       {secondary.length > 0 && (
         <>
           <h3 className="font-display text-muted text-[.74rem] font-semibold uppercase tracking-wide mt-5 mb-2.5">{isAdmin ? 'Admin tools' : 'More'}</h3>
-          <nav className="flex flex-col gap-[.6rem]">
+          <nav className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[.6rem]">
             {secondary.map((it) => (
               <MotionNavLink key={it.to} to={it.to} className={rowClass} whileTap={{ scale: 0.98 }}>
                 <span className="flex-none w-10 h-10 grid place-items-center bg-accent-weak text-primary rounded-sm"><Icon name={it.icon} size={19} /></span>
@@ -73,8 +70,15 @@ export default function More() {
         </>
       )}
 
+      {/* Appearance control. Shown for everyone — including admins, whose chrome
+          header has no toggle of its own, so this is their light/dark switch. */}
+      <h3 className="font-display text-muted text-[.74rem] font-semibold uppercase tracking-wide mt-5 mb-2.5">Appearance</h3>
+      <nav className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[.6rem]">
+        <ThemeToggle variant="row" />
+      </nav>
+
       <h3 className="font-display text-muted text-[.74rem] font-semibold uppercase tracking-wide mt-5 mb-2.5">Legal</h3>
-      <nav className="flex flex-col gap-[.6rem]">
+      <nav className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[.6rem]">
         <Link to="/legal/terms" className={rowClass}>
           <span className="flex-none w-10 h-10 grid place-items-center bg-accent-weak text-primary rounded-sm"><FileText size={19} strokeWidth={2} aria-hidden="true" /></span>
           <span className="flex flex-col leading-tight flex-1 min-w-0"><strong>Terms of Service</strong></span>
@@ -87,7 +91,7 @@ export default function More() {
         </Link>
       </nav>
 
-      <nav className="flex flex-col gap-[.6rem] mt-5">
+      <nav className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[.6rem] mt-5">
         <motion.button className={`${rowClass} text-danger`} onClick={onLogout} whileTap={{ scale: 0.98 }}>
           <span className="flex-none w-10 h-10 grid place-items-center bg-danger-weak text-danger rounded-sm"><Icon name="logout" size={19} /></span>
           <span className="flex flex-col leading-tight flex-1 min-w-0"><strong>Log out</strong></span>

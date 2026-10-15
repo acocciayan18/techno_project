@@ -1,4 +1,4 @@
-import { LayoutGrid, Tag, Package, Users, List, MoreHorizontal, LogOut, BellRing } from 'lucide-react';
+import { LayoutGrid, Tag, Package, Users, List, MoreHorizontal, LogOut, BellRing, LifeBuoy } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useResource } from '../store/dataStore.js';
 import { api } from '../lib/api.js';
@@ -12,6 +12,7 @@ const ICONS = {
   users: Users,
   list: List,
   bell: BellRing,
+  help: LifeBuoy,
   more: MoreHorizontal,
   logout: LogOut,
 };
@@ -39,7 +40,13 @@ export function useNavItems() {
       { to: '/users', label: 'Users', icon: 'users', desc: 'Manage registered accounts' },
       { to: '/items', label: 'Items', icon: 'list', desc: 'All registered items' },
     );
+  } else {
+    // Regular users get a page to track the QR codes they've requested for
+    // activation (pending / approved / rejected).
+    items.push({ to: '/my-requests', label: 'Requests', icon: 'bell', desc: 'Your activation requests' });
   }
+  // Help lives in the secondary set (the More menu) for everyone.
+  items.push({ to: '/help', label: 'Help & Support', icon: 'help', desc: 'FAQ and how to reach us' });
   return items;
 }
 

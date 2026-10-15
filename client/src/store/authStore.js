@@ -77,6 +77,20 @@ export const useAuthStore = create((set, get) => ({
     } catch { /* keep local preference; will re-sync on next login */ }
   },
 
+  // Re-pull the signed-in account from the server and apply it. Driven by the
+  // real-time 'me' nudge so a change to this user (their own theme saved on another
+  // tab, or an admin editing their name/username) reflects in this live session
+  // without a reload. Reuses the same theme-sync as init/login. A 401 here is
+  // handled by the global setOnUnauthorized hook, so swallow errors quietly.
+  async refreshMe() {
+    if (!get().user) return;
+    try {
+      const { user } = await api.get('/auth/me');
+      set({ user });
+      syncThemeFromUser(user);
+    } catch { /* session teardown handled by setOnUnauthorized */ }
+  },
+
   // Recovery (both respond generically; the UI shows a neutral confirmation).
   forgotPassword(username) {
     return api.post('/auth/forgot-password', { username }, { auth: false });

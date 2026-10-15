@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { User, AtSign, Mail } from 'lucide-react';
+import { User, AtSign, Mail, Home } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { tapProps } from '../components/motion.jsx';
 import Spinner from '../components/Spinner.jsx';
@@ -18,6 +18,11 @@ export default function Register() {
   const [form, setForm] = useState(EMPTY);
   const [errors, setErrors] = useState({}); // per-field messages
   const [busy, setBusy] = useState(false);
+  // Anti-abuse signals sent to the server (see server services/signupGuard.js):
+  //  - mountedAt → how long the form was on screen; a scripted insta-submit is flagged.
+  //  - honeypot  → a hidden field no human sees; any value marks an automated fill.
+  const mountedAt = useRef(Date.now());
+  const [honeypot, setHoneypot] = useState('');
 
   const set = (k) => (e) => {
     setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -57,6 +62,8 @@ export default function Register() {
         confirmPassword: form.confirmPassword,
         recoveryEmail: form.recoveryEmail.trim(),
         acceptedTerms: form.acceptedTerms,
+        elapsedMs: Date.now() - mountedAt.current,
+        website: honeypot, // honeypot: real users never touch this
       });
       navigate('/dashboard', { replace: true });
     } catch (err) {
@@ -77,11 +84,27 @@ export default function Register() {
 
   return (
     <div className="form-card">
+      <Link to="/" className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted hover:text-ink mb-4">
+        <Home size={16} strokeWidth={2} /> Home
+      </Link>
       <div className="form-head">
         <h1>Create account</h1>
         <p>Set up your account to start tagging items.</p>
       </div>
       <form onSubmit={onSubmit} noValidate>
+        {/* Honeypot: off-screen + hidden from AT and tab order. Humans never see or
+            reach it; automated form-fillers do, and the server flags any value. */}
+        <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, overflow: 'hidden' }}>
+          <input
+            type="text"
+            name="website"
+            tabIndex={-1}
+            autoComplete="off"
+            value={honeypot}
+            onChange={(e) => setHoneypot(e.target.value)}
+          />
+        </div>
+
         <label className="field-label">Full name
           <div className="inp-icon mt-1.5"><User /><input value={form.name} onChange={set('name')} maxLength={LIMITS.name} autoComplete="name" placeholder='Juan Dela Cruz' aria-invalid={errors.name ? true : undefined} /></div>
         </label>

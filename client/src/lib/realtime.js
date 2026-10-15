@@ -50,16 +50,25 @@ export function useRealtime() {
       } catch {
         return;
       }
-      // Account disabled by an admin: end the session live (don't wait for the next
-      // REST 401). The server has already closed the stream on its side.
+      // Session ended by the server (admin disabled the account, or its credentials
+      // changed): end the session live (don't wait for the next REST 401). The
+      // server has already closed the stream on its side; it may include a reason
+      // so the sign-out message matches the cause.
       if (data?.kick) {
         es.close();
-        useAuthStore.getState().forceLogout('Your account was disabled by an administrator.');
+        useAuthStore
+          .getState()
+          .forceLogout(data.reason || 'Your account was disabled by an administrator.');
         return;
       }
       if (Array.isArray(data?.resources)) {
         const store = useDataStore.getState();
-        for (const r of data.resources) store.revalidateMatching(r);
+        for (const r of data.resources) {
+          // 'me' is the signed-in account itself (name/username/role/settings). It
+          // lives in the auth store, not the data cache, so refresh it directly.
+          if (r === 'me') useAuthStore.getState().refreshMe();
+          else store.revalidateMatching(r);
+        }
       }
     };
 

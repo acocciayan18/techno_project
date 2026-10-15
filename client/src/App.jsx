@@ -1,9 +1,8 @@
 import { Navigate, Route, Routes, Link, NavLink, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Toaster } from 'sonner';
-import { QrCode, LogOut } from 'lucide-react';
+import { QrCode } from 'lucide-react';
 import { useAuth } from './context/AuthContext.jsx';
-import { useConfirm } from './components/ConfirmDialog.jsx';
 import { Icon, useNavItems, usePendingRequests, NavBadge, PRIMARY_COUNT } from './components/nav.jsx';
 import NotificationBell from './components/NotificationBell.jsx';
 import { useShowOnScroll } from './lib/useScrollDirection.js';
@@ -26,6 +25,8 @@ import AdminRequests from './pages/admin/AdminRequests.jsx';
 import AdminUsers from './pages/admin/AdminUsers.jsx';
 import AdminItems from './pages/admin/AdminItems.jsx';
 import More from './pages/More.jsx';
+import Requests from './pages/Requests.jsx';
+import Help from './pages/Help.jsx';
 
 const MotionNavLink = motion.create(NavLink);
 
@@ -55,22 +56,12 @@ const topLinkClass = ({ isActive }) =>
 // Desktop: sticky top bar. Brand + role-aware nav on the left, account controls
 // (theme, admin tag, avatar, log out) on the right. Mobile uses the bottom bar.
 function TopBar() {
-  const { user, isAdmin, logout } = useAuth();
-  const confirm = useConfirm();
+  const { user, isAdmin } = useAuth();
   const items = useNavItems();
   const pending = usePendingRequests();
   const show = useShowOnScroll();
   const initial = (user?.name || user?.username || '?').charAt(0).toUpperCase();
 
-  const onLogout = () =>
-    confirm({
-      title: 'Log out?',
-      description: 'You’ll need your username and password to sign back in.',
-      confirmLabel: 'Log out',
-      variant: 'default',
-      icon: LogOut,
-      onConfirm: logout,
-    });
   return (
     <header className={`hidden md:block sticky top-0 z-50 bg-bg/80 backdrop-blur-lg border-b border-border transition-transform duration-300 ease-out will-change-transform ${show ? 'translate-y-0' : '-translate-y-full'}`}>
       <div className="max-w-app mx-auto px-6 h-[60px] flex items-center justify-between gap-4">
@@ -80,7 +71,9 @@ function TopBar() {
             <strong className="font-display font-bold text-[1rem] tracking-tight">TagBack</strong>
           </Link>
           <nav className="flex items-center gap-1 overflow-x-auto">
-            {items.map((it) => (
+            {/* Only the core items here; admin pages (Requests, Users, Items)
+                live under the More menu, same as the mobile bottom bar. */}
+            {items.slice(0, PRIMARY_COUNT).map((it) => (
               <MotionNavLink key={it.to} to={it.to} className={topLinkClass} whileTap={{ scale: 0.97 }}>
                 <span className="inline-flex items-center gap-1.5">
                   {it.label}
@@ -88,21 +81,17 @@ function TopBar() {
                 </span>
               </MotionNavLink>
             ))}
+            {/* Same destination as the mobile bottom bar's More tab: legal links,
+                theme and account actions live on /more on desktop too. */}
+            <MotionNavLink to="/more" className={topLinkClass} whileTap={{ scale: 0.97 }}>
+              <span className="inline-flex items-center gap-1.5">More</span>
+            </MotionNavLink>
           </nav>
         </div>
         <div className="flex items-center gap-2.5 flex-none">
           {isAdmin && <RoleTag />}
           <NotificationBell />
           <span className="avatar w-9 h-9 text-[.82rem]" title={user?.username}>{initial}</span>
-          <motion.button
-            className="w-9 h-9 grid place-items-center rounded-xs text-muted border border-border bg-card hover:bg-surface hover:text-ink transition-colors cursor-pointer"
-            onClick={onLogout}
-            whileTap={{ scale: 0.95 }}
-            aria-label="Log out"
-            title="Log out"
-          >
-            <LogOut size={17} strokeWidth={2} />
-          </motion.button>
         </div>
       </div>
     </header>
@@ -213,12 +202,17 @@ function Chrome({ children }) {
 // App-wide toast host. Styling comes entirely from design tokens (see the Sonner
 // block in index.css), so toasts flip for light/dark with the rest of the UI and
 // Sonner's own theme never fights ours. Top-center keeps them clear of the mobile
-// bottom nav. See lib/toast.jsx for the `notify` API callers use.
+// bottom nav. Rendered OUTSIDE the app's `<main>` (which is `relative z-[1]`, a
+// stacking context that would trap the toasts below the z-50 sticky top bar), and
+// offset down past the 60px desktop top bar so notifications are never covered.
+// See lib/toast.jsx for the `notify` API callers use.
 function AppToaster() {
   return (
     <Toaster
       position="top-center"
       gap={10}
+      offset={{ top: 'calc(60px + 1rem)' }}
+      mobileOffset={{ top: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}
       toastOptions={{ className: 'tb-toast', duration: 2000 }}
       style={{
         '--normal-bg': 'rgb(var(--card))',
@@ -236,9 +230,10 @@ export default function App() {
   // notifications, QR status, activation requests and dashboards (see lib/realtime.js).
   useRealtime();
   return (
-    <Chrome>
+    <>
       <AppToaster />
-      <Routes>
+      <Chrome>
+        <Routes>
         <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
@@ -252,6 +247,9 @@ export default function App() {
         {/* Legacy customize link folds into the unified manage page. */}
         <Route path="/qr/:qrId/customize" element={<Navigate to="../item" replace />} />
         <Route path="/more" element={<ProtectedRoute><More /></ProtectedRoute>} />
+        <Route path="/help" element={<ProtectedRoute><Help /></ProtectedRoute>} />
+        {/* User's own activation-request tracker. */}
+        <Route path="/my-requests" element={<ProtectedRoute><Requests /></ProtectedRoute>} />
 
         {/* Admin-only feature pages — same app, same chrome, gated by role. */}
         <Route path="/requests" element={<ProtectedRoute admin><AdminRequests /></ProtectedRoute>} />
@@ -272,7 +270,8 @@ export default function App() {
         <Route path="/legal/privacy" element={<Privacy />} />
 
         <Route path="*" element={<div className="py-10 px-4 text-center font-semibold text-muted text-lg">Page not found.</div>} />
-      </Routes>
-    </Chrome>
+        </Routes>
+      </Chrome>
+    </>
   );
 }

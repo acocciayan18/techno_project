@@ -31,7 +31,14 @@ router.get('/q/:qrId', async (req, res, next) => {
     const qr = await qrService.getQr(qrId);
     if (!qr) return res.json({ state: 'NOT_FOUND', qrId });
     if (qr.status === QR_STATUS.DISABLED) return res.json({ state: 'DISABLED', qrId });
-    if (qr.status !== QR_STATUS.ACTIVATED) return res.json({ state: 'NOT_ACTIVATED', qrId });
+    if (qr.status !== QR_STATUS.ACTIVATED) {
+      // The id is surfaced as *claimable* (for the owner to copy into the Activate
+      // page) ONLY while the QR is still AVAILABLE. Once a claim is PENDING or the QR
+      // is ACTIVATED it is spoken-for — even with no item registered yet — so it is
+      // never presented as claimable here. The authoritative reuse guard lives in
+      // qrcodes.activate()/requestClaim(), which refuse any non-AVAILABLE QR.
+      return res.json({ state: 'NOT_ACTIVATED', qrId, claimable: qr.status === QR_STATUS.AVAILABLE });
+    }
 
     const item = await itemService.getItem(qrId);
     if (!item || !item.name) return res.json({ state: 'NO_ITEM', qrId });

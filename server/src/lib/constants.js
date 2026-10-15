@@ -141,6 +141,29 @@ export const AUTH = {
   USERNAME_RE: /^[a-z0-9_]{3,20}$/, // lowercase letters, digits, underscore
 };
 
+// Account-abuse / multi-account prevention. These tune the layered signup guard
+// in services/signupGuard.js + lib/captcha.js, which sit ON TOP of the generous
+// per-IP REGISTER rate limit. The rate limit caps raw signup VOLUME; this layer
+// targets the ABUSE pattern (bot submissions, duplicate identities, repeated
+// blocked attempts) and so keys on *bad* attempts, never on honest volume.
+export const ABUSE = {
+  // Fastest a human plausibly fills the signup form. A submit quicker than this is
+  // almost certainly scripted. Checked only when the client sends the elapsed time
+  // (fail-open for API/older clients) and flagged as a bot signal, not a hard ban.
+  MIN_FORM_FILL_MS: 1500,
+  // Hidden honeypot field name. No human sees it (off-screen, aria-hidden); any
+  // value means an automated form-filler populated it. Client mirrors this name.
+  HONEYPOT_FIELD: 'website',
+  // Suspicious-signup cooldown. After MAX_STRIKES *blocked* attempts (bot signal,
+  // failed CAPTCHA, or duplicate-recovery-email) from one signal — the client IP
+  // OR the canonical recovery email — within STRIKE_WINDOW_MS, further signups
+  // from that signal are refused for COOLDOWN_MS with a clear message. Keyed on
+  // both IP and email so rotating one of them does not escape the restriction.
+  SIGNUP_MAX_STRIKES: 5,
+  SIGNUP_STRIKE_WINDOW_MS: 60 * 60 * 1000, // 1 hour
+  SIGNUP_COOLDOWN_MS: 60 * 60 * 1000, // 1 hour
+};
+
 // Current version of the Terms of Service / Privacy Policy. Recorded against a
 // user when they accept at sign-up (see users.createUser). Keep in sync with the
 // client's LEGAL_VERSION (client/src/lib/legal.js).
@@ -154,4 +177,5 @@ export const COL = {
   CONTACTS: 'contactSettings',
   COUNTERS: 'counters',
   NOTIFICATIONS: 'notifications',
+  ADMIN_LOGS: 'adminLogs',
 };

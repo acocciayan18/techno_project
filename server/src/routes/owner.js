@@ -173,6 +173,53 @@ router.get('/claims', async (req, res, next) => {
   }
 });
 
+// The user's full activation-request history (pending / approved / rejected),
+// for the dedicated "Requests" page. Newest request first.
+router.get('/requests', async (req, res, next) => {
+  try {
+    const rows = await qrService.listRequestsByClaimant(req.user.uid);
+    const requests = rows
+      .map((qr) => ({
+        qrId: qr.qrId,
+        requestStatus: qr.claim?.status || null, // PENDING | APPROVED | REJECTED
+        qrStatus: qr.status,
+        owned: qr.ownerUid === req.user.uid, // true once an approval transferred it
+        note: qr.claim?.note || '',
+        requestedAt: qr.claim?.requestedAt || null,
+        decidedAt: qr.claim?.decidedAt || null,
+      }))
+      .sort((a, b) => (b.requestedAt || '').localeCompare(a.requestedAt || ''));
+    res.json({ requests });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Withdraw a still-pending request the user filed. Returns the QR to AVAILABLE
+// so it drops out of the admin queue and can be activated/requested again later.
+router.post('/qr/:qrId/cancel-request', async (req, res, next) => {
+  try {
+    const qrId = normalizeQrId(req.params.qrId);
+    if (!qrId) return res.status(400).json({ error: 'Invalid QR identifier' });
+    const result = await qrService.cancelRequest(qrId, req.user.uid);
+    if (!result.ok) {
+      const map = {
+        NOT_FOUND: [404, 'QR code does not exist'],
+        NOT_PENDING: [409, 'This request is no longer pending'],
+        NOT_YOURS: [403, 'This request is not yours'],
+      };
+      const [status, msg] = map[result.reason] || [409, 'Could not cancel request'];
+      return res.status(status).json({ error: msg, reason: result.reason });
+    }
+    // Drop it from this user's surfaces and the admin review queue in real time.
+    publishToUser(req.user.uid, ['owner/qrcodes', 'owner/claims']);
+    publishToAdmins(['admin/claims', 'admin/qrcodes', 'admin/stats']);
+    res.json({ qrId, cancelled: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
 /* ---------------- Notifications ----------------
  * Finder "I found this" reports land here as owner notifications. All routes are
  * scoped to the authenticated owner (req.user.uid); the service also re-checks
@@ -325,7 +372,9 @@ router.put('/items/:qrId', validate(itemSchema), async (req, res, next) => {
     if (!qr) return;
     const item = await itemService.upsertItem(qr.qrId, req.user.uid, req.body);
     publishToUser(req.user.uid, ['owner/qrcodes', 'qr']); // other devices see the edit
-    publishToAdmins(['admin/items']);
+    // admin/qrcodes too: the admin inventory table and the admin QR drawer render the
+    // item name/status, so they must refresh when an owner edits the item.
+    publishToAdmins(['admin/items', 'admin/qrcodes']);
     res.json({ item });
   } catch (e) {
     next(e);
@@ -423,7 +472,8 @@ router.put('/items/:qrId/status', validate(statusSchema), async (req, res, next)
     // Status (ACTIVE/LOST/RECOVERED) drives the dashboard, the admin item view, and
     // the public finder page — nudge this user's devices and the admin surfaces.
     publishToUser(req.user.uid, ['owner/qrcodes', 'qr']);
-    publishToAdmins(['admin/items', 'admin/stats']);
+    // admin/qrcodes too so the inventory table + open QR drawer item-status column refresh.
+    publishToAdmins(['admin/items', 'admin/stats', 'admin/qrcodes']);
     res.json({ qrId: qr.qrId, status: req.body.status });
   } catch (e) {
     next(e);
@@ -457,6 +507,8 @@ router.put('/customizations/:qrId', validate(customSchema), async (req, res, nex
     const qr = await loadOwnedQr(req, res);
     if (!qr) return;
     const saved = await customService.saveCustomization(qr.qrId, req.user.uid, req.body);
+    // The look/title/finder-message feed the public page and the owner's other tabs.
+    publishToUser(req.user.uid, ['owner/qrcodes', 'qr']);
     res.json({ customization: saved });
   } catch (e) {
     next(e);
@@ -490,6 +542,8 @@ router.put('/contact/:qrId', validate(contactSchema), async (req, res, next) => 
     const qr = await loadOwnedQr(req, res);
     if (!qr) return;
     const saved = await contactService.saveContact(qr.qrId, req.user.uid, req.body);
+    // Contact fields feed the public page and the owner's other tabs.
+    publishToUser(req.user.uid, ['owner/qrcodes', 'qr']);
     res.json({ contact: saved });
   } catch (e) {
     next(e);

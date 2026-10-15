@@ -37,8 +37,11 @@ function Row({ label, children }) {
 // onChanged() so the parent table stays in sync. QR activation and item editing
 // belong to the owner (owner routes), so this admin drawer only displays them.
 function DrawerBody({ qrId, onChanged, onClose }) {
+  // Key must sit UNDER the `admin/qrcodes` prefix so the existing real-time nudges
+  // (owner edits / status flips / another admin acts) revalidate this open drawer.
+  // `admin/qr/...` did not match `admin/qrcodes` and left the drawer stale.
   const { data, error, loading, reload } = useResource(
-    `admin/qr/${qrId}`,
+    `admin/qrcodes/${qrId}`,
     () => api.get(`/admin/qrcodes/${qrId}`),
   );
   const { run, isPending } = usePending();
@@ -268,7 +271,6 @@ function DrawerBody({ qrId, onChanged, onClose }) {
         ) : (
           <div className="card !mb-0 !py-1">
             <Row label="Name">{item.name || '—'}</Row>
-            <Row label="Category">{item.category || '—'}</Row>
             <Row label="Description">{item.description || '—'}</Row>
             <Row label="Recovery">{item.recoveryInstructions || '—'}</Row>
             <Row label="Item status">

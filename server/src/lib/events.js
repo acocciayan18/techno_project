@@ -79,12 +79,15 @@ export function publishToAdmins(resources) {
 }
 
 // Force-disconnect every connection of a user and tell the client to end its
-// session (used when an admin disables the account — it's kicked live, not just
-// on its next REST call).
-export function kickUser(uid) {
+// session (used when an admin disables the account, or when the account's
+// credentials change — it's kicked live, not just on its next REST call). An
+// optional reason is surfaced to the client so the sign-out message matches the
+// cause (disabled vs. credentials changed); the client falls back to a generic
+// message when none is given.
+export function kickUser(uid, reason) {
   const set = clients.get(uid);
   if (!set) return;
-  const payload = { v: 1, ts: Date.now(), kick: true };
+  const payload = { v: 1, ts: Date.now(), kick: true, reason: reason || undefined };
   for (const { res } of set) {
     write(res, payload);
     try { res.end(); } catch { /* already closed */ }

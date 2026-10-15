@@ -143,7 +143,10 @@ export default function QrPrintDialog({ qrIds, onClose }) {
     cardH: 50,
     margin: 10,
     gap: 4,
-    label: 'below',
+    // The QR ID is never printed alongside the code: the id is private and is only
+    // revealed (with a copy button) when a still-unactivated tag is scanned. Kept in
+    // state as 'none' so the layout maths still reserves no label strip.
+    label: 'none',
     cutLines: true,
   });
   const set = (k, v) => setS((prev) => ({ ...prev, [k]: v }));
@@ -280,14 +283,6 @@ export default function QrPrintDialog({ qrIds, onClose }) {
                 </Field>
               </div>
 
-              <Field label="ID label">
-                <select value={s.label} onChange={(e) => set('label', e.target.value)} className="!mt-0">
-                  <option value="below">Below QR</option>
-                  <option value="right">Beside QR</option>
-                  <option value="none">Hidden</option>
-                </select>
-              </Field>
-
               <label className="flex items-center gap-2.5 font-semibold text-sm cursor-pointer">
                 <input type="checkbox" checked={s.cutLines} onChange={(e) => set('cutLines', e.target.checked)} />
                 Show cut guides
@@ -313,7 +308,8 @@ export default function QrPrintDialog({ qrIds, onClose }) {
 
               <p className="text-xs text-muted-2 m-0 leading-relaxed">
                 In the print dialog choose <strong>Save as PDF</strong> and set margins to <strong>None</strong>.
-                Printing does not change any QR’s status.
+                The QR ID is never printed on the label — it stays private and is revealed only when an
+                unactivated tag is scanned. Printing does not change any QR’s status.
               </p>
             </div>
 

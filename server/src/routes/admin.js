@@ -5,13 +5,14 @@ import { requireAuth } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/admin.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 import { normalizeQrId } from '../lib/ids.js';
-import { QR_STATUS, ITEM_STATUS, RATE_LIMIT } from '../lib/constants.js';
+import { QR_STATUS, ITEM_STATUS, RATE_LIMIT, AUTH, TEXT_LIMITS } from '../lib/constants.js';
 import * as qrService from '../services/qrcodes.js';
 import * as itemService from '../services/items.js';
 import * as userService from '../services/users.js';
 import * as customService from '../services/customizations.js';
 import * as contactService from '../services/contacts.js';
 import * as notificationService from '../services/notifications.js';
+import * as auditLog from '../services/auditLog.js';
 import { publishToUser, publishToAdmins, kickUser } from '../lib/events.js';
 
 const router = Router();
@@ -247,6 +248,104 @@ router.get('/users', async (req, res, next) => {
   }
 });
 
+// Full detail for one account + its admin-action history (newest first). Powers
+// the user detail drawer: account fields, security state, and the audit trail.
+router.get('/users/:uid', async (req, res, next) => {
+  try {
+    const user = await userService.findByUid(req.params.uid);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const logs = await auditLog.listForTarget(user.uid, 50);
+    res.json({ user: userService.adminUserDetail(user), logs });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Admin edit of an account's identity fields. All fields optional (partial
+// update) but at least one is required. Mirrors the sign-up rules so an admin
+// can't create a value the user themselves couldn't: username shape, password
+// strength, email format. Username and recovery email stay unique across
+// accounts. A new password is hashed in the service and never logged in clear.
+const adminUserPatchSchema = z
+  .object({
+    name: z.string().trim().min(1, 'Full name is required').max(TEXT_LIMITS.NAME).optional(),
+    username: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .regex(AUTH.USERNAME_RE, 'Username must be 3–20 characters: letters, numbers, or underscore')
+      .optional(),
+    recoveryEmail: z.string().trim().toLowerCase().email('Enter a valid email').or(z.literal('')).optional(),
+    password: z
+      .string()
+      .min(8, 'Password must be at least 8 characters')
+      .regex(/[A-Za-z]/, 'Password must contain a letter')
+      .regex(/[0-9]/, 'Password must contain a number')
+      .optional(),
+  })
+  .refine((d) => Object.keys(d).length > 0, { message: 'No changes provided' });
+
+router.put('/users/:uid', validate(adminUserPatchSchema), async (req, res, next) => {
+  try {
+    const { uid } = req.params;
+    const target = await userService.findByUid(uid);
+    if (!target) return res.status(404).json({ error: 'User not found' });
+
+    const { name, username, recoveryEmail, password } = req.body;
+
+    // Uniqueness guards — a changed username / recovery email must not collide
+    // with a DIFFERENT account (matching the user's own current value is fine).
+    if (username && username !== target.username) {
+      const existing = await userService.findByUsername(username);
+      if (existing && existing.uid !== uid) {
+        return res.status(409).json({ error: 'That username is already taken' });
+      }
+    }
+    if (recoveryEmail) {
+      const existing = await userService.findByRecoveryEmail(recoveryEmail);
+      if (existing && existing.uid !== uid) {
+        return res.status(409).json({ error: 'That recovery email is already in use' });
+      }
+    }
+
+    const updated = await userService.adminUpdateUser(uid, { name, username, recoveryEmail, password });
+
+    // Audit exactly which fields changed — never the secret values. A password
+    // change is recorded as a fact ("password"), not its contents.
+    const changed = [];
+    if (name !== undefined && name !== (target.name || '')) changed.push('name');
+    if (username !== undefined && username !== target.username) changed.push('username');
+    if (recoveryEmail !== undefined && (recoveryEmail || null) !== (target.recoveryEmail || null)) changed.push('recoveryEmail');
+    if (password !== undefined) changed.push('password');
+
+    if (changed.length) {
+      await auditLog.record({
+        actorUid: req.user.uid,
+        actorUsername: req.user.username,
+        action: auditLog.AUDIT_ACTION.USER_UPDATE,
+        targetUid: uid,
+        targetUsername: updated.username,
+        details: { fields: changed },
+      });
+    }
+
+    // Refresh every admin's user table + any open detail drawer for this account.
+    publishToAdmins(['admin/users']);
+    // Reflect the edit in the target user's own live session. A password change
+    // invalidated their token (tokenVersion bumped), so end those sessions live
+    // with a matching reason instead of a bare 'me' nudge that would just 401;
+    // other identity edits (name/username/email) refresh in place via 'me'.
+    if (changed.includes('password') && uid !== req.user.uid) {
+      kickUser(uid, 'Your password was changed. Please sign in again.');
+    } else {
+      publishToUser(uid, ['me']);
+    }
+    res.json({ user: userService.adminUserDetail(updated), changed });
+  } catch (e) {
+    next(e);
+  }
+});
+
 // Enable / disable a user account. A disabled user can't log in and is kicked
 // off on their next request. An admin can't disable their own account.
 async function setUserDisabled(req, res, next, disabled) {
@@ -259,6 +358,13 @@ async function setUserDisabled(req, res, next, disabled) {
     // Disabling kicks the account's live sessions immediately (not just on its next
     // REST call); both directions refresh other admins' user table.
     if (disabled) kickUser(uid);
+    await auditLog.record({
+      actorUid: req.user.uid,
+      actorUsername: req.user.username,
+      action: disabled ? auditLog.AUDIT_ACTION.USER_DISABLE : auditLog.AUDIT_ACTION.USER_ENABLE,
+      targetUid: uid,
+      targetUsername: target.username,
+    });
     publishToAdmins(['admin/users']);
     res.json({ uid, disabled });
   } catch (e) {

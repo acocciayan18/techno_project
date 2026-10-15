@@ -40,6 +40,10 @@ router.get('/stream', streamLimiter, async (req, res, next) => {
     const user = await findByUid(payload.uid);
     if (!user) return res.status(401).json({ error: 'User no longer exists' });
     if (user.disabled) return res.status(403).json({ error: 'This account has been disabled.' });
+    // Same credential-change check as requireAuth: a stale-token stream can't open.
+    if ((payload.tv || 0) !== (user.tokenVersion || 0)) {
+      return res.status(401).json({ error: 'Session expired. Please log in again.' });
+    }
 
     // SSE handshake. Disable buffering/compression so events flush immediately.
     res.writeHead(200, {

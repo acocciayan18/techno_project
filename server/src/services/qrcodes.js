@@ -36,6 +36,35 @@ export async function listPendingByClaimant(claimantUid) {
     .filter((qr) => qr.claim?.uid === claimantUid);
 }
 
+// Every QR this user filed an activation REQUEST on (the admin-review path),
+// across all outcomes: still PENDING, APPROVED (now owned by them), or REJECTED.
+// Excludes direct code activations (method SECRET) — those were never a request.
+// The memory DB has no nested-field query, so fetch all and filter in JS, the
+// same approach the admin claim queue uses.
+export async function listRequestsByClaimant(claimantUid) {
+  const snap = await col().get();
+  return snap.docs
+    .map((d) => ({ qrId: d.id, ...d.data() }))
+    .filter((qr) => qr.claim?.uid === claimantUid && qr.claim?.method !== CLAIM_METHOD.SECRET);
+}
+
+// User withdraws their OWN still-pending request -> the QR returns to AVAILABLE
+// and the claim is cleared, so the id can be requested/activated again later.
+// Transactional, authoritative guards: the QR must be PENDING and the pending
+// claim must belong to this user. Returns { ok, reason } for HTTP mapping.
+export async function cancelRequest(qrId, claimantUid) {
+  const ref = col().doc(qrId);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return { ok: false, reason: 'NOT_FOUND' };
+    const data = snap.data();
+    if (data.status !== QR_STATUS.PENDING || !data.claim?.uid) return { ok: false, reason: 'NOT_PENDING' };
+    if (data.claim.uid !== claimantUid) return { ok: false, reason: 'NOT_YOURS' };
+    tx.update(ref, { status: QR_STATUS.AVAILABLE, ownerUid: null, claim: null });
+    return { ok: true };
+  });
+}
+
 // Pre-generate `count` QR ids inside a transaction. Each id is securely random
 // (crypto) and collision-checked. Each QR also gets a one-time activation code:
 // only its HMAC is stored; the plaintext is returned here ONCE so the caller can

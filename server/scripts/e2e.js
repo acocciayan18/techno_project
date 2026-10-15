@@ -124,7 +124,9 @@ try {
     body: { name: 'Ayan', username: 'ayan', password: 'secret12', confirmPassword: 'secret12', recoveryEmail: 'ayan@recovery.local', acceptedTerms: true },
   });
   check('TEST 2a: user registers with username', reg.status === 201 && !!reg.json.token && reg.json.user.username === 'ayan');
-  const ayan = reg.json.token;
+  // `let` so it can be refreshed after a password change invalidates the old token
+  // (tokenVersion check in requireAuth) — mirrors what a real client does on re-login.
+  let ayan = reg.json.token;
 
   // TEST 2: activation requires the activation code, not the QR id alone.
   const noSecret = await api('POST', '/api/owner/qr/activate', { token: ayan, body: { qrId: `${qr1}` } });
@@ -364,7 +366,8 @@ try {
   const reAct = await api('POST', '/api/owner/qr/activate', { token: ayan, body: { qrId: `${qr1}`, secret: secretOf[qr1] } });
   check('TEST 11: re-activating own QR rejected', reAct.status === 409 && reAct.json.reason === 'ALREADY_YOURS');
   const reg2 = await api('POST', '/api/auth/register', { body: { name: 'Bob', username: 'bob', password: 'secret12', confirmPassword: 'secret12', acceptedTerms: true } });
-  const bob = reg2.json.token;
+  // `let`: refreshed after bob's password is changed below (old token is invalidated).
+  let bob = reg2.json.token;
   // Even holding the real code, a taken QR can't be re-claimed (status gates first).
   const stealAct = await api('POST', '/api/owner/qr/activate', { token: bob, body: { qrId: `${qr1}`, secret: secretOf[qr1] } });
   check('TEST 11b: another user cannot activate taken QR', stealAct.status === 409 && stealAct.json.reason === 'ALREADY_ACTIVATED');
@@ -405,6 +408,29 @@ try {
   check('TEST 14c: admin rejects -> back to AVAILABLE', reject.status === 200 && reject.json.status === 'AVAILABLE');
   const afterReject = await api('POST', '/api/owner/qr/activate', { token: ayan, body: { qrId: c2, secret: secret2[c2] } });
   check('TEST 14d: rejected QR can then be code-activated', afterReject.status === 201 && afterReject.json.status === 'ACTIVATED');
+
+  // ---- USER REQUESTS PAGE: history + cancel --------------------------------
+  // bob's approved request (c1) appears in their request history as APPROVED+owned;
+  // a direct code activation (c2 by ayan, method SECRET) is NOT a request.
+  const bobReqs = await api('GET', '/api/owner/requests', { token: bob });
+  const c1Row = bobReqs.json.requests.find((r) => r.qrId === c1);
+  check('REQ: request history lists an approved request (owned)', bobReqs.status === 200 && !!c1Row && c1Row.requestStatus === 'APPROVED' && c1Row.owned === true);
+  const ayanReqs = await api('GET', '/api/owner/requests', { token: ayan });
+  check('REQ: code activation is not listed as a request', !ayanReqs.json.requests.some((r) => r.qrId === c2));
+
+  // File a fresh request on cLock, confirm it shows PENDING, then cancel it.
+  const reqCancel = await api('POST', '/api/owner/qr/claim-request', { token: bob, body: { qrId: cLock, note: 'please activate' } });
+  check('REQ: file a request to cancel (PENDING)', reqCancel.status === 201 && reqCancel.json.status === 'PENDING');
+  const beforeCancel = await api('GET', '/api/owner/requests', { token: bob });
+  check('REQ: pending request appears in history', beforeCancel.json.requests.some((r) => r.qrId === cLock && r.requestStatus === 'PENDING'));
+  const cancelNotYours = await api('POST', `/api/owner/qr/${cLock}/cancel-request`, { token: ayan });
+  check('REQ: another user cannot cancel the request (403)', cancelNotYours.status === 403, JSON.stringify(cancelNotYours.json));
+  const cancelOk = await api('POST', `/api/owner/qr/${cLock}/cancel-request`, { token: bob });
+  check('REQ: owner cancels their pending request (200)', cancelOk.status === 200 && cancelOk.json.cancelled === true);
+  const cancelAgain = await api('POST', `/api/owner/qr/${cLock}/cancel-request`, { token: bob });
+  check('REQ: cancelling a non-pending request conflicts (409)', cancelAgain.status === 409);
+  const afterCancelAvail = await api('GET', `/api/q/${cLock}`);
+  check('REQ: cancelled QR is AVAILABLE again', afterCancelAvail.json.state === 'NOT_ACTIVATED');
 
   // TEST 15: there is NO admin direct-assignment path. Ownership comes only from
   // the owner's activation code or admin approval of a user-filed claim — so the
@@ -458,6 +484,39 @@ try {
   const badName = await api('POST', '/api/auth/register', { body: { name: 'Bad', username: 'Bad Name!', password: 'secret12', confirmPassword: 'secret12' } });
   check('AUTH: invalid username format rejected (400)', badName.status === 400);
 
+  // ---- ACCOUNT-ABUSE PREVENTION (signup) ------------------------------------
+
+  // Bot heuristic: a non-empty honeypot field means an automated form-filler.
+  const honeypot = await api('POST', '/api/auth/register', {
+    body: { name: 'Bot', username: 'honeybot', password: 'secret12', confirmPassword: 'secret12', acceptedTerms: true, website: 'http://spam.example' },
+  });
+  check('ABUSE: honeypot-filled signup rejected (400)', honeypot.status === 400 && honeypot.json.error && !honeypot.json.details);
+
+  // Bot heuristic: an implausibly fast submit (below MIN_FORM_FILL_MS) is scripted.
+  const tooFast = await api('POST', '/api/auth/register', {
+    body: { name: 'Fast', username: 'speedy', password: 'secret12', confirmPassword: 'secret12', acceptedTerms: true, elapsedMs: 50 },
+  });
+  check('ABUSE: too-fast signup rejected (400)', tooFast.status === 400);
+
+  // The new anti-abuse fields don't break a normal signup: honeypot empty + a
+  // human-plausible fill time still succeeds.
+  const human = await api('POST', '/api/auth/register', {
+    body: { name: 'Human', username: 'realperson', password: 'secret12', confirmPassword: 'secret12', acceptedTerms: true, website: '', elapsedMs: 9000 },
+  });
+  check('ABUSE: well-formed signup with anti-bot fields still succeeds (201)', human.status === 201 && !!human.json.token);
+
+  // Duplicate-account via email aliasing: a second account whose recovery email
+  // folds to the same inbox (dots + "+tag" on gmail) is rejected, even though the
+  // raw strings and usernames differ.
+  const emailA = await api('POST', '/api/auth/register', {
+    body: { name: 'Mail A', username: 'mail_a', password: 'secret12', confirmPassword: 'secret12', acceptedTerms: true, recoveryEmail: 'canon.test+a@gmail.com', elapsedMs: 9000 },
+  });
+  check('ABUSE: first account with recovery email created (201)', emailA.status === 201);
+  const emailB = await api('POST', '/api/auth/register', {
+    body: { name: 'Mail B', username: 'mail_b', password: 'secret12', confirmPassword: 'secret12', acceptedTerms: true, recoveryEmail: 'c.anontest+x@gmail.com', elapsedMs: 9000 },
+  });
+  check('ABUSE: duplicate recovery email (alias) rejected (409)', emailB.status === 409 && emailB.json.details?.[0]?.path === 'recoveryEmail');
+
   // Wrong password + nonexistent user -> identical generic message (no enumeration)
   const wrongPw = await api('POST', '/api/auth/login', { body: { username: 'bob', password: 'nope1234' } });
   const noUser = await api('POST', '/api/auth/login', { body: { username: 'ghost', password: 'nope1234' } });
@@ -491,6 +550,11 @@ try {
   check('AUTH: reset token is single-use (400)', reused.status === 400);
   const loginNew = await api('POST', '/api/auth/login', { body: { username: 'ayan', password: 'newpass12' } });
   check('AUTH: can log in with the new password', loginNew.status === 200 && !!loginNew.json.token);
+  // The password reset above bumped ayan's tokenVersion, so the original `ayan`
+  // token is now rejected. Confirm that, then adopt the fresh token for later use.
+  const ayanStale = await api('GET', '/api/owner/qrcodes', { token: ayan });
+  check('AUTH: token from before the password reset is rejected (401)', ayanStale.status === 401);
+  ayan = loginNew.json.token;
 
   // Disable: admin disables bob -> bob can't log in and is kicked off authed routes
   const disable = await api('PUT', `/api/admin/users/${reg2.json.user.uid}/disable`, { token: adminToken });
@@ -506,6 +570,62 @@ try {
   // Admin can't disable self
   const selfDisable = await api('PUT', `/api/admin/users/${adminLogin.json.user?.uid || ''}/disable`, { token: adminToken });
   check('AUTH: admin cannot disable own account (400)', selfDisable.status === 400);
+
+  // ---- ADMIN USER MANAGEMENT: detail, edit, validation, audit log ----------
+  const bobUid = reg2.json.user.uid;
+
+  // Detail returns the account, its security state, and an audit log that already
+  // holds the disable + enable performed just above.
+  const detail = await api('GET', `/api/admin/users/${bobUid}`, { token: adminToken });
+  check('USERMGMT: detail returns account + logs array', detail.status === 200 && detail.json.user.uid === bobUid && Array.isArray(detail.json.logs));
+  check('USERMGMT: detail exposes security fields, hides secrets', detail.json.user.failedAttempts !== undefined && detail.json.user.passwordHash === undefined && detail.json.user.resetTokenHash === undefined);
+  check('USERMGMT: disable + enable were audited', detail.json.logs.some((l) => l.action === 'user.disable') && detail.json.logs.some((l) => l.action === 'user.enable'));
+
+  // Unknown user -> 404; non-admin blocked.
+  const detailMissing = await api('GET', '/api/admin/users/does-not-exist', { token: adminToken });
+  check('USERMGMT: detail 404 for unknown user', detailMissing.status === 404);
+  const detailAsUser = await api('GET', `/api/admin/users/${bobUid}`, { token: bob });
+  check('USERMGMT: non-admin blocked from detail (403)', detailAsUser.status === 403);
+  const editAsUser = await api('PUT', `/api/admin/users/${bobUid}`, { token: bob, body: { name: 'Hacker' } });
+  check('USERMGMT: non-admin blocked from edit (403)', editAsUser.status === 403);
+
+  // Edit name + recovery email.
+  const edit1 = await api('PUT', `/api/admin/users/${bobUid}`, { token: adminToken, body: { name: 'Bob Renamed', recoveryEmail: 'bob@example.com' } });
+  check('USERMGMT: admin edits name + email (200)', edit1.status === 200 && edit1.json.user.name === 'Bob Renamed' && edit1.json.user.recoveryEmail === 'bob@example.com');
+
+  // Empty patch + bad values rejected by validation.
+  const emptyPatch = await api('PUT', `/api/admin/users/${bobUid}`, { token: adminToken, body: {} });
+  check('USERMGMT: empty patch rejected (400)', emptyPatch.status === 400);
+  const badUsername = await api('PUT', `/api/admin/users/${bobUid}`, { token: adminToken, body: { username: 'Bad Name!' } });
+  check('USERMGMT: invalid username rejected (400)', badUsername.status === 400);
+  const weakPw = await api('PUT', `/api/admin/users/${bobUid}`, { token: adminToken, body: { password: 'short' } });
+  check('USERMGMT: weak password rejected (400)', weakPw.status === 400);
+
+  // Uniqueness: username collides with the admin account; recovery email collides
+  // with bob's (just set above), applied to a different account.
+  const dupUsername = await api('PUT', `/api/admin/users/${bobUid}`, { token: adminToken, body: { username: 'admin' } });
+  check('USERMGMT: duplicate username rejected (409)', dupUsername.status === 409);
+  const dupEmail = await api('PUT', `/api/admin/users/${ayanUser.uid}`, { token: adminToken, body: { recoveryEmail: 'bob@example.com' } });
+  check('USERMGMT: duplicate recovery email rejected (409)', dupEmail.status === 409);
+
+  // Change username + password: the new credentials work, the old ones stop.
+  const edit2 = await api('PUT', `/api/admin/users/${bobUid}`, { token: adminToken, body: { username: 'bobby', password: 'brandnew12' } });
+  check('USERMGMT: admin changes username + password (200)', edit2.status === 200 && edit2.json.user.username === 'bobby');
+  const loginNewCreds = await api('POST', '/api/auth/login', { body: { username: 'bobby', password: 'brandnew12' } });
+  check('USERMGMT: user logs in with new username + password', loginNewCreds.status === 200 && !!loginNewCreds.json.token);
+  const loginOldCreds = await api('POST', '/api/auth/login', { body: { username: 'bob', password: 'secret12' } });
+  check('USERMGMT: old username no longer logs in (401)', loginOldCreds.status === 401);
+  // The admin password change bumped bob's tokenVersion, so the pre-change `bob`
+  // token is now rejected. Confirm, then adopt the fresh token for later tests.
+  const bobStale = await api('GET', '/api/owner/qrcodes', { token: bob });
+  check('USERMGMT: token from before the password change is rejected (401)', bobStale.status === 401);
+  bob = loginNewCreds.json.token;
+
+  // The edit appended a user.update record naming the changed fields (password
+  // recorded as a fact, never its value).
+  const detail2 = await api('GET', `/api/admin/users/${bobUid}`, { token: adminToken });
+  const updateLog = detail2.json.logs.find((l) => l.action === 'user.update' && l.details?.fields?.includes('password'));
+  check('USERMGMT: edit audited with changed fields, no secret', !!updateLog && updateLog.details.fields.includes('username') && JSON.stringify(updateLog).indexOf('brandnew12') === -1);
 
   // ---- Original edge cases --------------------------------------------------
   const notFound = await api('GET', '/api/q/ZZZZZZZZ');
@@ -652,6 +772,42 @@ try {
     const added = connectionCount() - before;
     check('SSE: per-account connection cap enforced', added === SSE.MAX_CONN_PER_USER, `added=${added} cap=${SSE.MAX_CONN_PER_USER}`);
     check('SSE: evicted oldest sockets were closed (res.end called)', ended === 5, `ended=${ended}`);
+  }
+
+  // Email canonicalization + the strike-based signup cooldown are exercised at the
+  // module level (like the SSE cap above): the HTTP-level cooldown shares the single
+  // suite IP, so driving it over HTTP would entangle with the register rate limit.
+  {
+    const { canonicalizeEmail } = await import('../src/lib/email.js');
+    check(
+      'ABUSE: gmail dots + "+tag" + googlemail all fold to one canonical inbox',
+      canonicalizeEmail('Foo.Bar+newsletter@googlemail.com') === 'foobar@gmail.com' &&
+        canonicalizeEmail('foobar@gmail.com') === 'foobar@gmail.com',
+      canonicalizeEmail('Foo.Bar+newsletter@googlemail.com'),
+    );
+    check(
+      'ABUSE: non-gmail "+tag" stripped but dots kept (different providers stay distinct)',
+      canonicalizeEmail('jane.doe+promo@outlook.com') === 'jane.doe@outlook.com',
+      canonicalizeEmail('jane.doe+promo@outlook.com'),
+    );
+
+    const { signupSignals, signupBlockedMs, recordSignupStrike, botSignupReason, _resetSignupGuard } = await import(
+      '../src/services/signupGuard.js'
+    );
+    const { ABUSE } = await import('../src/lib/constants.js');
+    _resetSignupGuard();
+
+    const attacker = signupSignals({ ip: '203.0.113.9', emailCanonical: 'burner@gmail.com' });
+    const bystander = signupSignals({ ip: '198.51.100.7', emailCanonical: 'honest@gmail.com' });
+    check('ABUSE: a fresh signal is not under cooldown', signupBlockedMs(attacker) === 0);
+    for (let i = 0; i < ABUSE.SIGNUP_MAX_STRIKES; i++) recordSignupStrike(attacker);
+    check('ABUSE: repeated blocked attempts engage a temporary cooldown', signupBlockedMs(attacker) > 0);
+    check('ABUSE: cooldown is per-signal — an unrelated user is unaffected', signupBlockedMs(bystander) === 0);
+
+    check('ABUSE: honeypot value flagged as a bot', botSignupReason({ honeypot: 'x' }) === 'honeypot');
+    check('ABUSE: sub-threshold fill time flagged as a bot', botSignupReason({ elapsedMs: 100 }) === 'timing');
+    check('ABUSE: clean submission (no fields / plausible time) not flagged', botSignupReason({ elapsedMs: 9000 }) === null && botSignupReason({}) === null);
+    _resetSignupGuard();
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

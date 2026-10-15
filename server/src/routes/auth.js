@@ -5,11 +5,16 @@ import { requireAuth } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 import { signToken } from '../lib/jwt.js';
 import { sendPasswordReset } from '../lib/mailer.js';
-import { AUTH, TEXT_LIMITS, RATE_LIMIT } from '../lib/constants.js';
+import { verifyCaptcha } from '../lib/captcha.js';
+import { canonicalizeEmail } from '../lib/email.js';
+import { publishToUser, publishToAdmins } from '../lib/events.js';
+import { AUTH, TEXT_LIMITS, RATE_LIMIT, ABUSE } from '../lib/constants.js';
 import {
   createUser,
   findByUsername,
   findByUid,
+  findByRecoveryEmail,
+  findByRecoveryEmailCanonical,
   verifyPassword,
   publicUser,
   isLocked,
@@ -21,6 +26,12 @@ import {
   resetPassword,
   updateSettings,
 } from '../services/users.js';
+import {
+  signupSignals,
+  signupBlockedMs,
+  recordSignupStrike,
+  botSignupReason,
+} from '../services/signupGuard.js';
 
 const router = Router();
 
@@ -62,11 +73,27 @@ const registerSchema = z
     acceptedTerms: z.literal(true, {
       errorMap: () => ({ message: 'You must agree to the Terms of Service and Privacy Policy' }),
     }),
+    // Anti-abuse fields (all optional so API/older clients still work):
+    //  - honeypot: hidden form field; a human leaves it empty (see ABUSE.HONEYPOT_FIELD).
+    //  - elapsedMs: ms the client spent on the form; a too-fast submit looks scripted.
+    //  - captchaToken: bot-challenge token, required only when a CAPTCHA_SECRET is set.
+    [ABUSE.HONEYPOT_FIELD]: z.string().max(200).optional(),
+    elapsedMs: z.number().int().nonnegative().optional(),
+    captchaToken: z.string().max(4000).optional(),
   })
   .refine((d) => d.password === d.confirmPassword, {
     message: 'Passwords do not match',
     path: ['confirmPassword'],
   });
+
+// Shown whenever a signup is refused on an abuse signal. Deliberately vague — it
+// never reveals which check tripped (honeypot, timing, CAPTCHA), so a script can't
+// tune around it, while still telling a real user what to do.
+const SIGNUP_BLOCKED = 'We couldn’t process this sign-up. Please try again later.';
+
+function blockedMinutes(ms) {
+  return Math.max(1, Math.ceil(ms / 60000));
+}
 
 const loginSchema = z.object({
   username: z.string().trim().toLowerCase().min(1, 'Username is required'),
@@ -79,12 +106,67 @@ const BAD_CREDS = 'Invalid username or password';
 
 router.post('/register', registerLimiter, validate(registerSchema), async (req, res, next) => {
   try {
-    const { name, username, password, recoveryEmail, acceptedTerms } = req.body;
-    if (await findByUsername(username)) {
-      return res.status(409).json({ error: 'That username is already taken' });
+    const { name, username, password, recoveryEmail, acceptedTerms, captchaToken } = req.body;
+    const honeypot = req.body[ABUSE.HONEYPOT_FIELD];
+    const emailCanonical = canonicalizeEmail(recoveryEmail);
+    const signals = signupSignals({ ip: req.ip, emailCanonical });
+
+    // 1) Temporary restriction: this IP or recovery email has racked up enough
+    //    blocked attempts to be in a cooldown. Refuse up front with a clear ETA,
+    //    before doing any work. Keyed on IP + email, so it can't be dodged by
+    //    swapping just one of them.
+    const cooldownMs = signupBlockedMs(signals);
+    if (cooldownMs > 0) {
+      const mins = blockedMinutes(cooldownMs);
+      res.set('Retry-After', String(Math.ceil(cooldownMs / 1000)));
+      return res.status(429).json({
+        error: `Too many sign-up attempts from here. Please try again in about ${mins} minute${mins === 1 ? '' : 's'}.`,
+      });
     }
+
+    // 2) Bot heuristics (honeypot + submit timing). A hit is a strong automation
+    //    signal: record a strike (which can engage the cooldown above) and refuse
+    //    with the vague message so a script learns nothing.
+    const botReason = botSignupReason({ honeypot, elapsedMs: req.body.elapsedMs });
+    if (botReason) {
+      recordSignupStrike(signals);
+      return res.status(400).json({ error: SIGNUP_BLOCKED });
+    }
+
+    // 3) CAPTCHA / bot-challenge — only enforced when a secret is configured.
+    const captcha = await verifyCaptcha(captchaToken, req.ip);
+    if (!captcha.ok) {
+      recordSignupStrike(signals);
+      return res.status(400).json({ error: SIGNUP_BLOCKED });
+    }
+
+    // 4) Username uniqueness (case-folded). A taken handle is ordinary user error,
+    //    not abuse, so it does NOT earn a strike.
+    if (await findByUsername(username)) {
+      return res.status(409).json({
+        error: 'That username is already taken',
+        details: [{ path: 'username', message: 'That username is already taken' }],
+      });
+    }
+
+    // 5) Duplicate recovery email — the core multi-account signal. Match both the
+    //    canonical (alias-folded) form and the raw address (for legacy accounts
+    //    saved before the canonical field existed). This IS an abuse signal, so it
+    //    records a strike toward the cooldown.
+    if (recoveryEmail) {
+      const dupe =
+        (await findByRecoveryEmailCanonical(recoveryEmail)) || (await findByRecoveryEmail(recoveryEmail));
+      if (dupe) {
+        recordSignupStrike(signals);
+        const msg = 'An account with that recovery email already exists.';
+        return res.status(409).json({ error: msg, details: [{ path: 'recoveryEmail', message: msg }] });
+      }
+    }
+
     const user = await createUser({ name, username, password, recoveryEmail: recoveryEmail || null, acceptedTerms });
-    const token = signToken({ uid: user.uid, role: user.role });
+    const token = signToken({ uid: user.uid, role: user.role, tv: user.tokenVersion || 0 });
+    // A new account appears in the admin users table + the registered-users stat.
+    publishToAdmins(['admin/users', 'admin/stats']);
     res.status(201).json({ token, user: publicUser(user) });
   } catch (e) {
     next(e);
@@ -118,7 +200,7 @@ router.post('/login', loginLimiter, validate(loginSchema), async (req, res, next
     }
 
     await clearLoginThrottle(user.uid);
-    const token = signToken({ uid: user.uid, role: user.role });
+    const token = signToken({ uid: user.uid, role: user.role, tv: user.tokenVersion || 0 });
     res.json({ token, user: publicUser(user) });
   } catch (e) {
     next(e);
@@ -142,6 +224,8 @@ router.put('/me/settings', requireAuth, meLimiter, validate(settingsSchema), asy
   try {
     const user = await updateSettings(req.user.uid, req.body);
     if (!user) return res.status(404).json({ error: 'User not found' });
+    // Sync the change (e.g. theme) to this account's other tabs/devices live.
+    publishToUser(req.user.uid, ['me']);
     res.json({ user: publicUser(user) });
   } catch (e) {
     next(e);

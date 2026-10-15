@@ -1,15 +1,18 @@
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Plus, QrCode, Flag, Check, Package, Boxes, Users, List, Clock, ChevronRight } from 'lucide-react';
+import { Plus, QrCode, Flag, Check, Package, Boxes, Users, List, Clock, ChevronRight, ListChecks, Trash2, Search, X, PackageSearch } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { assetUrl } from '../lib/config.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import { useResource } from '../store/dataStore.js';
+import { useResource, useDataStore } from '../store/dataStore.js';
 import { usePending } from '../lib/useAsync.js';
+import { useConfirm } from '../components/ConfirmDialog.jsx';
 import { tapProps, fadeUp } from '../components/motion.jsx';
 import Spinner from '../components/Spinner.jsx';
 import { SkeletonStats, SkeletonCards } from '../components/Skeleton.jsx';
 import NotificationBell from '../components/NotificationBell.jsx';
+import { useNotifications, relativeTime } from '../lib/useNotifications.js';
 import { notify } from '../lib/toast.jsx';
 
 const MotionLink = motion.create(Link);
@@ -128,6 +131,52 @@ function AdminOverview() {
   );
 }
 
+// Status filters for the owner's QR grid. `match` runs against a card's item.
+const FILTERS = [
+  { key: 'ALL', label: 'All', match: () => true },
+  { key: 'ACTIVE', label: 'Active', match: (q) => q.item?.status === 'ACTIVE' },
+  { key: 'LOST', label: 'Lost', match: (q) => q.item?.status === 'LOST' },
+  { key: 'RECOVERED', label: 'Recovered', match: (q) => q.item?.status === 'RECOVERED' },
+  { key: 'NONE', label: 'No item', match: (q) => !q.item },
+];
+
+// Recent finder reports, surfaced inline on the dashboard. Same data as the nav
+// bell, but shown at a glance here — the latest sightings of the owner's items,
+// newest first. Renders nothing when there's no activity.
+function RecentActivity() {
+  const { list } = useNotifications();
+  const recent = list.slice(0, 4);
+  if (recent.length === 0) return null;
+  return (
+    <section className="mb-6">
+      <h2 className="mb-3">Recent activity</h2>
+      <div className="card !mb-0 !p-0 divide-y divide-border overflow-hidden">
+        {recent.map((n) => (
+          <Link
+            key={n.id}
+            to={`/qr/${n.qrId}`}
+            className="flex items-center gap-3 px-4 py-3 hover:bg-surface hover:no-underline transition-colors"
+          >
+            <span className={`flex-none w-9 h-9 grid place-items-center rounded-[9px] ${n.read ? 'bg-surface text-muted' : 'bg-warn-weak text-warn'}`}>
+              <PackageSearch size={17} strokeWidth={2} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[.9rem] leading-snug text-ink break-words">
+                Someone reported finding <strong className="font-semibold">{n.itemName || 'your item'}</strong>.
+              </span>
+              <span className="mt-0.5 flex items-center gap-2 text-[.72rem] text-muted-2">
+                <span className="font-mono font-semibold bg-surface border border-border rounded-xs px-1.5 py-0.5">{n.qrId}</span>
+                <span title={n.createdAt || ''}>{relativeTime(n.createdAt)}</span>
+              </span>
+            </span>
+            <ChevronRight size={17} strokeWidth={2} className="flex-none text-muted-2" />
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export default function Dashboard() {
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
@@ -135,6 +184,17 @@ export default function Dashboard() {
   const { data: qrcodes, error, loading, reload } = useResource('owner/qrcodes', () => api.get('/owner/qrcodes').then((r) => r.qrcodes));
   const { data: claims } = useResource('owner/claims', () => api.get('/owner/claims').then((r) => r.claims));
   const { run, isPending } = usePending();
+  const confirm = useConfirm();
+
+  // Multi-select + bulk actions over the owner's own registered QR codes.
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState(() => new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+
+  // Search + status filter over the grid (client-side; the summary tiles stay
+  // global so the headline counts never shift as you filter).
+  const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('ALL');
 
   function changeStatus(qrId, status) {
     return run(qrId, async () => {
@@ -155,6 +215,100 @@ export default function Dashboard() {
     lost: list.filter((q) => q.item?.status === 'LOST').length,
     recovered: list.filter((q) => q.item?.status === 'RECOVERED').length,
   };
+
+  // Codes that survive the active search + status filter — what the grid renders
+  // and what the bulk actions operate on.
+  const q = query.trim().toLowerCase();
+  const activeFilter = FILTERS.find((f) => f.key === statusFilter) || FILTERS[0];
+  const visible = list.filter(
+    (qr) => activeFilter.match(qr) && (!q || qr.qrId.toLowerCase().includes(q) || (qr.item?.name || '').toLowerCase().includes(q)),
+  );
+  const filtering = q !== '' || statusFilter !== 'ALL';
+
+  // ---- Bulk selection ---- (scoped to the visible/filtered codes)
+  const selectedList = list.filter((qr) => selected.has(qr.qrId));
+  const allSelected = visible.length > 0 && visible.every((qr) => selected.has(qr.qrId));
+
+  function toggleOne(qrId) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(qrId) ? next.delete(qrId) : next.add(qrId);
+      return next;
+    });
+  }
+  function toggleAll() {
+    setSelected((prev) => {
+      // If every visible code is already selected, clear them; otherwise add them all.
+      const everyVisible = visible.length > 0 && visible.every((qr) => prev.has(qr.qrId));
+      const next = new Set(prev);
+      visible.forEach((qr) => (everyVisible ? next.delete(qr.qrId) : next.add(qr.qrId)));
+      return next;
+    });
+  }
+  function exitSelect() {
+    setSelectMode(false);
+    setSelected(new Set());
+  }
+
+  // Run one owner endpoint across many QRs. Partial failure is tolerated (each QR
+  // is independent and re-validated server-side) and summarized in one toast.
+  async function applyBulk({ ids, action, verb }) {
+    setBulkBusy(true);
+    const results = await Promise.allSettled(ids.map((id) => action(id)));
+    const ok = results.filter((r) => r.status === 'fulfilled').length;
+    const failed = results.length - ok;
+    await reload();
+    const store = useDataStore.getState();
+    store.invalidate('owner/claims');
+    ids.forEach((id) => { store.invalidate(`qr/${id}`); store.invalidate(`manage/${id}`); });
+    setBulkBusy(false);
+    exitSelect();
+    if (ok && failed) notify.warning(`${ok} ${verb}, ${failed} failed.`);
+    else if (ok) notify.success(`${ok} QR${ok === 1 ? '' : 's'} ${verb}.`);
+    else notify.error('Could not update the selected codes.');
+  }
+
+  function bulkMarkLost() {
+    const ids = selectedList.filter((q) => q.item && q.item.status !== 'LOST').map((q) => q.qrId);
+    if (!ids.length) { notify.warning('None of the selected codes have an item that can be marked lost.'); return; }
+    return confirm({
+      title: `Mark ${ids.length} item${ids.length === 1 ? '' : 's'} as lost?`,
+      description: 'Their public finder pages go live so anyone who scans can help return them. Selected codes without an item are skipped.',
+      confirmLabel: 'Mark as lost',
+      busyLabel: 'Updating…',
+      variant: 'warning',
+      icon: Flag,
+      onConfirm: () => applyBulk({ ids, action: (id) => api.put(`/owner/items/${id}/status`, { status: 'LOST' }), verb: 'marked lost' }),
+    });
+  }
+
+  function bulkMarkFound() {
+    const ids = selectedList.filter((q) => q.item?.status === 'LOST').map((q) => q.qrId);
+    if (!ids.length) { notify.warning('None of the selected codes are currently reported lost.'); return; }
+    return applyBulk({ ids, action: (id) => api.put(`/owner/items/${id}/status`, { status: 'RECOVERED' }), verb: 'marked found' });
+  }
+
+  function bulkDelete() {
+    const ids = selectedList.filter((q) => q.item?.status !== 'LOST').map((q) => q.qrId);
+    const skipped = selected.size - ids.length;
+    if (!ids.length) { notify.warning('Mark lost items as found before deleting their codes.'); return; }
+    return confirm({
+      title: `Delete ${ids.length} QR code${ids.length === 1 ? '' : 's'}?`,
+      description: (
+        <>
+          Item details, page customization and contact info are removed for good. The codes return to
+          unused and can be activated again later with their printed code.
+          {skipped > 0 && <> {skipped} lost item{skipped === 1 ? '' : 's'} will be skipped.</>}{' '}
+          <strong className="text-ink">This can’t be undone.</strong>
+        </>
+      ),
+      confirmLabel: 'Delete codes',
+      busyLabel: 'Deleting…',
+      variant: 'danger',
+      icon: Trash2,
+      onConfirm: () => applyBulk({ ids, action: (id) => api.del(`/owner/qr/${id}`), verb: 'deleted' }),
+    });
+  }
 
   return (
     <div>
@@ -194,12 +348,45 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="flex items-baseline justify-between gap-3 mb-4">
-        <h2>My QR codes</h2>
+      <RecentActivity />
+
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <h2 className="m-0">My QR codes</h2>
         {qrcodes && qrcodes.length > 0 && (
-          <span className="text-[.82rem] font-semibold text-muted tabular-nums">{list.length} total</span>
+          <div className="flex items-center gap-3 flex-none">
+            <span className="text-[.82rem] font-semibold text-muted tabular-nums">{list.length} total</span>
+            <motion.button
+              className={`btn btn-sm ${selectMode ? 'btn-primary' : ''}`}
+              onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}
+              {...tapProps}
+            >
+              <ListChecks size={15} strokeWidth={2.5} /> {selectMode ? 'Done' : 'Select'}
+            </motion.button>
+          </div>
         )}
       </div>
+
+      {/* Bulk action bar — visible in select mode; actions apply to the checked codes. */}
+      {selectMode && qrcodes && qrcodes.length > 0 && (
+        <div className="card !mb-4 flex items-center gap-3 flex-wrap !py-3">
+          <label className="flex items-center gap-2 text-sm font-semibold cursor-pointer">
+            <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Select all QR codes" />
+            {selected.size > 0 ? `${selected.size} selected` : 'Select all'}
+          </label>
+          {bulkBusy && <Spinner size={16} />}
+          <div className="flex gap-2 ml-auto flex-wrap">
+            <motion.button className="btn btn-sm btn-danger" onClick={bulkMarkLost} disabled={selected.size === 0 || bulkBusy} {...tapProps}>
+              <Flag size={15} strokeWidth={2.5} /> Mark lost
+            </motion.button>
+            <motion.button className="btn btn-sm btn-success" onClick={bulkMarkFound} disabled={selected.size === 0 || bulkBusy} {...tapProps}>
+              <Check size={15} strokeWidth={2.5} /> Mark found
+            </motion.button>
+            <motion.button className="btn btn-sm btn-ghost !text-danger" onClick={bulkDelete} disabled={selected.size === 0 || bulkBusy} {...tapProps}>
+              <Trash2 size={15} strokeWidth={2.5} /> Delete
+            </motion.button>
+          </div>
+        </div>
+      )}
 
       {qrcodes && qrcodes.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
@@ -207,6 +394,49 @@ export default function Dashboard() {
           <Stat label="Active" value={counts.active} icon={Check} tone="success" />
           <Stat label="Reported lost" value={counts.lost} icon={Flag} tone="warn" />
           <Stat label="Recovered" value={counts.recovered} icon={Package} tone="info" />
+        </div>
+      )}
+
+      {/* Search + status filter. Client-side over the owner's own codes; the
+          summary tiles above stay global so headline counts never shift. */}
+      {qrcodes && qrcodes.length > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
+          <label className="inp-icon flex-1 min-w-0" aria-label="Search your QR codes">
+            <Search />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by code or item name…"
+              className="!mt-0"
+            />
+            {query && (
+              <button
+                type="button"
+                className="inp-trail text-muted-2 hover:text-ink"
+                onClick={() => setQuery('')}
+                aria-label="Clear search"
+              >
+                <X size={16} strokeWidth={2.5} />
+              </button>
+            )}
+          </label>
+          <div className="flex gap-1.5 flex-wrap">
+            {FILTERS.map((f) => {
+              const n = f.key === 'ALL' ? list.length : list.filter(f.match).length;
+              return (
+                <motion.button
+                  key={f.key}
+                  type="button"
+                  className={`chip-toggle ${statusFilter === f.key ? 'chip-toggle-active' : ''}`}
+                  onClick={() => setStatusFilter(f.key)}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  {f.label} <span className="tabular-nums opacity-70">{n}</span>
+                </motion.button>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -221,26 +451,51 @@ export default function Dashboard() {
         </div>
       )}
 
+      {qrcodes && qrcodes.length > 0 && visible.length === 0 && filtering && (
+        <div className="card text-center flex flex-col items-center gap-3 py-8">
+          <span className="w-12 h-12 grid place-items-center rounded-[12px] bg-surface text-muted-2"><Search size={24} strokeWidth={2} /></span>
+          <p className="text-muted m-0">No codes match your search or filter.</p>
+          <motion.button className="btn btn-sm" onClick={() => { setQuery(''); setStatusFilter('ALL'); }} {...tapProps}>
+            Clear filters
+          </motion.button>
+        </div>
+      )}
+
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(240px,1fr))]">
-        {list.map((qr, i) => {
+        {visible.map((qr, i) => {
           const item = qr.item;
           const itemStatus = item?.status;
+          const isSel = selected.has(qr.qrId);
+          const activate = () => (selectMode ? toggleOne(qr.qrId) : navigate(`/qr/${qr.qrId}`));
           return (
             <motion.div
-              className="card flex flex-col cursor-pointer"
+              className={`card flex flex-col cursor-pointer ${selectMode && isSel ? '!border-primary ring-2 ring-primary/40' : ''}`}
               key={qr.qrId}
               variants={fadeUp}
               initial="initial"
               animate="animate"
               transition={{ delay: i * 0.05 }}
               whileHover={{ y: -3 }}
-              role="link"
+              role={selectMode ? 'checkbox' : 'link'}
+              aria-checked={selectMode ? isSel : undefined}
               tabIndex={0}
-              onClick={() => navigate(`/qr/${qr.qrId}`)}
-              onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/qr/${qr.qrId}`); }}
+              onClick={activate}
+              onKeyDown={(e) => { if (e.key === 'Enter' || (selectMode && e.key === ' ')) { e.preventDefault(); activate(); } }}
             >
               <div className="flex justify-between items-center mb-2.5 gap-2">
-                <span className="font-mono font-semibold text-[.82rem] bg-surface border border-border rounded-xs px-2 py-1">{qr.qrId}</span>
+                <div className="flex items-center gap-2 min-w-0">
+                  {selectMode && (
+                    <input
+                      type="checkbox"
+                      className="flex-none"
+                      checked={isSel}
+                      onChange={() => toggleOne(qr.qrId)}
+                      onClick={(e) => e.stopPropagation()}
+                      aria-label={`Select ${qr.qrId}`}
+                    />
+                  )}
+                  <span className="font-mono font-semibold text-[.82rem] bg-surface border border-border rounded-xs px-2 py-1 truncate">{qr.qrId}</span>
+                </div>
                 <span className={`badge ${ITEM_BADGE[itemStatus] || 'badge-gray'}`}>
                   {item ? itemStatus : 'NO ITEM'}
                 </span>
@@ -255,7 +510,7 @@ export default function Dashboard() {
               )}
               <div className={`font-display font-semibold mt-3 mb-3 text-[1.05rem] leading-snug truncate ${item?.name ? 'text-ink' : 'text-muted-2'}`}>{item?.name || 'No item registered'}</div>
 
-              <div className="flex flex-wrap gap-[.45rem] mt-auto pt-0.5" onClick={(e) => e.stopPropagation()}>
+              <div className={`flex flex-wrap gap-[.45rem] mt-auto pt-0.5 ${selectMode ? 'hidden' : ''}`} onClick={(e) => e.stopPropagation()}>
                 <Link className="btn btn-sm" to={`/qr/${qr.qrId}/item`}>{item ? 'Edit item & page' : 'Register item'}</Link>
                 {item && itemStatus !== 'LOST' && (
                   <motion.button className="btn btn-sm btn-danger" onClick={() => changeStatus(qr.qrId, 'LOST')} disabled={isPending(qr.qrId)} {...tapProps}>

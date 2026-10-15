@@ -129,7 +129,7 @@ export default function ItemManage() {
         <h1>Manage {qrId}</h1>
       </div>
 
-      <form onSubmit={onSave} className="grid grid-cols-1 gap-4 items-start max-w-[640px]">
+      <form onSubmit={onSave} className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
         <div className="card">
           <h3>Item details</h3>
           <label className="field-label">Item name
@@ -173,6 +173,30 @@ export default function ItemManage() {
           </label>
           <label className="field-label">Contact button text
             <input value={custom.contactButtonText || ''} onChange={setC('contactButtonText')} maxLength={LIMITS.contactButtonText} />
+          </label>
+
+          <h3>Appearance</h3>
+          <label className="field-label">Accent color
+            <div className="flex items-center gap-2.5 mt-1.5">
+              <input
+                type="color"
+                value={/^#[0-9a-fA-F]{6}$/.test(custom.accentColor || '') ? custom.accentColor : '#2563eb'}
+                onChange={(e) => setCustomEdit({ ...custom, accentColor: e.target.value })}
+                className="h-10 w-12 flex-none rounded-sm border border-border bg-card p-1 cursor-pointer"
+                aria-label="Accent color"
+              />
+              <input
+                value={custom.accentColor || ''}
+                onChange={(e) => setCustomEdit({ ...custom, accentColor: e.target.value })}
+                maxLength={7}
+                spellCheck={false}
+                autoCapitalize="none"
+                className="!mt-0 font-mono w-28"
+                placeholder="#2563eb"
+                aria-label="Accent color hex"
+              />
+            </div>
+            <p className="text-muted text-[.82rem] mt-1">Drives the title, buttons and highlights on your public finder page.</p>
           </label>
 
           <h3>Visibility</h3>
@@ -275,7 +299,7 @@ export default function ItemManage() {
           </label>
         </div>
 
-        <motion.button className="btn btn-primary" disabled={busy} {...tapProps}>
+        <motion.button className="btn btn-primary lg:col-span-2 justify-self-start" disabled={busy} {...tapProps}>
           {busy ? <Spinner size={18} /> : <Save size={18} strokeWidth={2.5} />}
           {busy ? 'Saving…' : 'Save'}
         </motion.button>
