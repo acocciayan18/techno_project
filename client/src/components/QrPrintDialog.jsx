@@ -34,7 +34,7 @@ function computeLayout(s) {
   const perPage = cols * rows;
 
   // Reserve a strip for the ID label, then size the QR as the largest square
-  // that still fits — proportions never distort.
+  // that still fits , proportions never distort.
   const labelBelow = s.label === 'below';
   const labelRight = s.label === 'right';
   const pad = 1.4; // inner card padding (mm) around the QR + label
@@ -308,7 +308,7 @@ export default function QrPrintDialog({ qrIds, onClose }) {
 
               <p className="text-xs text-muted-2 m-0 leading-relaxed">
                 In the print dialog choose <strong>Save as PDF</strong> and set margins to <strong>None</strong>.
-                The QR ID is never printed on the label — it stays private and is revealed only when an
+                The QR ID is never printed on the label , it stays private and is revealed only when an
                 unactivated tag is scanned. Printing does not change any QR’s status.
               </p>
             </div>
@@ -316,7 +316,7 @@ export default function QrPrintDialog({ qrIds, onClose }) {
             {/* Live preview */}
             <div ref={previewRef} className="flex-1 min-h-0 overflow-y-auto bg-surface p-5 flex flex-col items-center gap-5">
               {tooBig ? (
-                <p className="text-muted text-sm m-auto">Nothing to preview — adjust the card size.</p>
+                <p className="text-muted text-sm m-auto">Nothing to preview , adjust the card size.</p>
               ) : (
                 Array.from({ length: pageCount }).map((_, i) => {
                   const pageIds = qrIds.slice(i * L.perPage, (i + 1) * L.perPage);
@@ -340,7 +340,7 @@ export default function QrPrintDialog({ qrIds, onClose }) {
 
           <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-border flex-none">
             <span className="text-sm text-muted">
-              {tooBig ? '—' : `${qrIds.length} QR${qrIds.length === 1 ? '' : 's'} · ${pageCount} page${pageCount === 1 ? '' : 's'}`}
+              {tooBig ? 'N/A' : `${qrIds.length} QR${qrIds.length === 1 ? '' : 's'} · ${pageCount} page${pageCount === 1 ? '' : 's'}`}
             </span>
             <div className="flex gap-2.5">
               <motion.button className="btn" onClick={onClose} {...tapProps}>Cancel</motion.button>

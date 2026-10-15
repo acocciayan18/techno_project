@@ -20,7 +20,9 @@ process.env.STORAGE_MODE = 'local';
 
 const { createApp } = await import('../src/index.js');
 const { ROLE } = await import('../src/lib/constants.js');
-const { createUser, issueResetToken } = await import('../src/services/users.js');
+const { createUser, issueResetToken, findByUsername } = await import('../src/services/users.js');
+const { passwordResetEmail } = await import('../src/lib/emailTemplates.js');
+const { appBaseUrl } = await import('../src/lib/qrimage.js');
 const { UPLOAD_DIR } = await import('../src/config/storage.js');
 
 let base;
@@ -135,6 +137,14 @@ try {
   check('TEST 2b: activation with a wrong code rejected (422)', wrongSecret.status === 422 && wrongSecret.json.reason === 'BAD_SECRET', JSON.stringify(wrongSecret.json));
   const act = await api('POST', '/api/owner/qr/activate', { token: ayan, body: { qrId: `${qr1}`, secret: secretOf[qr1] } });
   check(`TEST 2: user activates ${qr1} with its code`, act.status === 201 && act.json.status === 'ACTIVATED', JSON.stringify(act.json));
+
+  // TEST 2c/2d: admins never acquire QR ownership for themselves. Both the code
+  // activation and the no-code claim-request routes reject an admin token (403,
+  // ADMIN_FORBIDDEN) before touching state — qr2 stays AVAILABLE for later tests.
+  const adminActivate = await api('POST', '/api/owner/qr/activate', { token: adminToken, body: { qrId: `${qr2}`, secret: secretOf[qr2] } });
+  check('TEST 2c: admin cannot activate a QR (403)', adminActivate.status === 403 && adminActivate.json.reason === 'ADMIN_FORBIDDEN', JSON.stringify(adminActivate.json));
+  const adminClaim = await api('POST', '/api/owner/qr/claim-request', { token: adminToken, body: { qrId: `${qr2}`, note: 'nope' } });
+  check('TEST 2d: admin cannot file a claim-request (403)', adminClaim.status === 403 && adminClaim.json.reason === 'ADMIN_FORBIDDEN', JSON.stringify(adminClaim.json));
 
   // TEST 3: register item
   const item = await api('PUT', `/api/owner/items/${qr1}`, {
@@ -556,6 +566,43 @@ try {
   check('AUTH: token from before the password reset is rejected (401)', ayanStale.status === 401);
   ayan = loginNew.json.token;
 
+  // Reset rejects reusing the current password (the token proves account control,
+  // so revealing this is safe and forces a real change).
+  const sameToken = await issueResetToken(ayanUser.uid);
+  const samePw = await api('POST', '/api/auth/reset-password', { body: { token: sameToken, password: 'newpass12', confirmPassword: 'newpass12' } });
+  check('AUTH: reset to the current password rejected (400)', samePw.status === 400 && Array.isArray(samePw.json.details));
+  // That same token is still valid (reset didn't go through) — a genuinely new password works.
+  const changed = await api('POST', '/api/auth/reset-password', { body: { token: sameToken, password: 'newpass56', confirmPassword: 'newpass56' } });
+  check('AUTH: reset to a different password succeeds (200)', changed.status === 200);
+  const loginNewer = await api('POST', '/api/auth/login', { body: { username: 'ayan', password: 'newpass56' } });
+  check('AUTH: can log in with the changed password', loginNewer.status === 200 && !!loginNewer.json.token);
+  ayan = loginNewer.json.token; // adopt the fresh token (the newpass56 reset bumped tokenVersion)
+
+  // Over-long password rejected by the schema (bcrypt 72-byte cap guard).
+  const longPw = 'a1'.repeat(150); // 300 chars > PASSWORD_MAX (200)
+  const longReset = await api('POST', '/api/auth/reset-password', { body: { token: 'whatever', password: longPw, confirmPassword: longPw } });
+  check('AUTH: over-long password rejected (400)', longReset.status === 400);
+
+  // Per-account resend cooldown: a second forgot-password within the window must
+  // NOT reissue the token (so one mailbox can't be flooded), while the response
+  // stays identical (no enumeration). Observed via the stored token hash.
+  await api('POST', '/api/auth/forgot-password', { body: { username: 'ayan' } });
+  const afterFirst = await findByUsername('ayan');
+  const forgotAgain = await api('POST', '/api/auth/forgot-password', { body: { username: 'ayan' } });
+  const afterSecond = await findByUsername('ayan');
+  check('AUTH: rapid repeat forgot-password is suppressed (token unchanged)',
+    !!afterFirst.resetTokenHash && afterFirst.resetTokenHash === afterSecond.resetTokenHash);
+  check('AUTH: repeat forgot-password still responds generically',
+    forgotAgain.status === 200 && forgotAgain.json.message === forgotKnown.json.message);
+
+  // Branded reset email builds both an HTML and a plain-text part, and embeds the link.
+  const sampleLink = `${appBaseUrl()}/reset-password?token=abc123`;
+  const mail = passwordResetEmail({ link: sampleLink, minutes: 60, name: 'Ayan Dela Cruz' });
+  check('EMAIL: reset template has subject + html + text',
+    typeof mail.subject === 'string' && mail.subject.includes('TagBack') &&
+    mail.html.includes('<!doctype html>') && mail.html.includes(sampleLink) &&
+    mail.text.includes(sampleLink) && mail.text.includes('60 minutes'));
+
   // Disable: admin disables bob -> bob can't log in and is kicked off authed routes
   const disable = await api('PUT', `/api/admin/users/${reg2.json.user.uid}/disable`, { token: adminToken });
   check('AUTH: admin disables a user (200)', disable.status === 200 && disable.json.disabled === true);
@@ -640,7 +687,7 @@ try {
   check('EDGE: disabled QR -> DISABLED', adminDisableQr.status === 200 && disabledView.json.state === 'DISABLED');
   const noAuth = await api('GET', '/api/owner/qrcodes');
   check('EDGE: owner route needs auth (401)', noAuth.status === 401);
-  const notAdmin = await api('GET', '/api/admin/users', { token: loginNew.json.token });
+  const notAdmin = await api('GET', '/api/admin/users', { token: ayan });
   check('EDGE: admin route blocks non-admin (403)', notAdmin.status === 403);
   const stats = await api('GET', '/api/admin/stats', { token: adminToken });
   // 8 generated (4 + 4) minus two deleted (qr4 in the photo workflow, one in TEST 15d) = 6.

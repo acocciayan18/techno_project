@@ -36,8 +36,17 @@ export default function ResetPassword() {
       await resetPassword({ token, password, confirmPassword });
       setDone(true);
     } catch (err) {
-      // Expired/invalid token or server fault — surface it as a toast.
-      notify.error(err.message);
+      // Field-level server errors (e.g. "same as current password") map onto the
+      // matching input; everything else (expired/invalid token) is a toast.
+      const details = err.data?.details;
+      if (Array.isArray(details) && details.length) {
+        const next = {};
+        for (const d of details) if (d?.path) next[d.path] = d.message;
+        setErrors(next);
+        if (!next.password && !next.confirmPassword) notify.error(err.message);
+      } else {
+        notify.error(err.message);
+      }
     } finally {
       setBusy(false);
     }

@@ -7,7 +7,7 @@ import { useAuthStore } from '../store/authStore.js';
 // Real-time layer (client side). Opens ONE Server-Sent Events connection per
 // signed-in session and turns each server nudge into a background revalidation of
 // the matching cached resources (store/dataStore.js). The server only ever says
-// "resource X changed" — the client refetches through the normal authenticated
+// "resource X changed" , the client refetches through the normal authenticated
 // API, so nothing here can show data the account couldn't already load. This sits
 // on top of the existing stale-while-revalidate cache and the 60s notifications
 // poll: both still work if the stream is unavailable (older browser, proxy that
@@ -38,7 +38,7 @@ export function useRealtime() {
       // The browser reconnects automatically after a dropped connection (honouring
       // the server's `retry` hint). On every reconnect AFTER the first open, pull a
       // fresh copy of everything so changes that happened during the outage aren't
-      // missed — SSE has no replay.
+      // missed , SSE has no replay.
       if (reconnectedRef.current) revalidateAll();
       reconnectedRef.current = true;
     };

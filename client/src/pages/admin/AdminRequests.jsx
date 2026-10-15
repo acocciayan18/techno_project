@@ -9,12 +9,7 @@ import Spinner from '../../components/Spinner.jsx';
 import { SkeletonTable } from '../../components/Skeleton.jsx';
 import QrDetailDrawer from '../../components/QrDetailDrawer.jsx';
 import { notify } from '../../lib/toast.jsx';
-
-function fmtDate(iso) {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString();
-}
+import { formatDate } from '../../lib/date.js';
 
 // Dedicated review queue for user-filed activation requests. Approving transfers
 // ownership to the requester; rejecting returns the QR to AVAILABLE. Both actions
@@ -34,7 +29,7 @@ export default function AdminRequests() {
       try {
         await api.put(`/admin/qr/${qrId}/${decision}`, {});
         await reload();
-        notify.success(decision === 'approve' ? `${qrId} approved — ownership transferred.` : `${qrId} rejected — released to stock.`);
+        notify.success(decision === 'approve' ? `${qrId} approved , ownership transferred.` : `${qrId} rejected , released to stock.`);
       } catch (e) {
         notify.error(e.message);
       }
@@ -86,7 +81,7 @@ export default function AdminRequests() {
                     {c.claimantName && <span className="text-muted"> · {c.claimantName}</span>}
                   </span>
                   <span className="text-xs text-muted inline-flex items-center gap-1 ml-auto">
-                    <Clock size={13} strokeWidth={2.2} /> {fmtDate(c.requestedAt)}
+                    <Clock size={13} strokeWidth={2.2} /> {formatDate(c.requestedAt)}
                   </span>
                 </div>
 

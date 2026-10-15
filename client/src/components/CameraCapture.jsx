@@ -11,7 +11,7 @@ import Spinner from './Spinner.jsx';
 // Hands the chosen image back as a Blob via onCapture; never uploads itself.
 //
 // The capture is downscaled client-side (longest edge <= MAX_EDGE) and encoded as
-// JPEG — a first optimization pass before the backend re-optimizes.
+// JPEG , a first optimization pass before the backend re-optimizes.
 const MAX_EDGE = 1600;
 
 export default function CameraCapture({ onCapture, onClose }) {
@@ -215,7 +215,7 @@ export default function CameraCapture({ onCapture, onClose }) {
             )}
           </div>
 
-          {/* Hidden fallback input — `capture` hints the rear camera on phones. */}
+          {/* Hidden fallback input , `capture` hints the rear camera on phones. */}
           <input
             ref={fileRef}
             type="file"

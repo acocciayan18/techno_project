@@ -15,7 +15,7 @@ export function usePending() {
   const rerender = useCallback(() => forceRender((n) => n + 1), []);
 
   const run = useCallback(async (key, fn) => {
-    if (inFlight.current.has(key)) return;   // duplicate — ignore
+    if (inFlight.current.has(key)) return;   // duplicate , ignore
     inFlight.current.add(key);
     rerender();
     try {

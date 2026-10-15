@@ -19,7 +19,7 @@ const BrandMark = ({ size = 34, icon = 19 }) => (
   </span>
 );
 
-// Scroll-reveal wrapper — subtle fade + rise, fires once when it enters view.
+// Scroll-reveal wrapper , subtle fade + rise, fires once when it enters view.
 // Reduced-motion users get the final state immediately (duration collapses via CSS,
 // and motion respects prefers-reduced-motion for whileInView transitions).
 function Reveal({ children, delay = 0, y = 16, className }) {
@@ -74,7 +74,7 @@ function Header() {
   );
 }
 
-// Decorative, non-interactive mock of a TagBack finder page — the view a finder
+// Decorative, non-interactive mock of a TagBack finder page , the view a finder
 // sees after scanning a tag. Pure presentation; aria-hidden so it's skipped by AT.
 function HeroVisual() {
   return (
@@ -163,7 +163,7 @@ function Hero() {
           <Reveal delay={0.1}>
             <p className="text-muted text-[1.05rem] md:text-[1.15rem] leading-relaxed mt-5 max-w-[32rem]">
               Attach a TagBack QR code to anything you own. If it’s ever lost, whoever
-              finds it just scans the tag — and gets in touch with you in seconds, without
+              finds it just scans the tag , and gets in touch with you in seconds, without
               ever seeing your private details.
             </p>
           </Reveal>
@@ -209,9 +209,9 @@ function Sparkle() {
 }
 
 const STEPS = [
-  { icon: Tag, title: 'Attach the QR tag', text: 'Stick or clip a durable TagBack code onto your keys, bag, laptop — anything worth keeping.' },
+  { icon: Tag, title: 'Attach the QR tag', text: 'Stick or clip a durable TagBack code onto your keys, bag, laptop , anything worth keeping.' },
   { icon: QrCode, title: 'Register your item', text: 'Activate the tag in your account and add item details and a message for finders.' },
-  { icon: ScanLine, title: 'A finder scans it', text: 'Lost it? Whoever finds your item scans the QR with any phone camera — no app, no sign-up.' },
+  { icon: ScanLine, title: 'A finder scans it', text: 'Lost it? Whoever finds your item scans the QR with any phone camera , no app, no sign-up.' },
   { icon: BellRing, title: 'You get contacted', text: 'They reach you through a private, secure channel. Your real contact details stay hidden.' },
 ];
 
@@ -254,12 +254,12 @@ function HowItWorks() {
 }
 
 const BENEFITS = [
-  { icon: ShieldCheck, title: 'Privacy by default', text: 'Finders contact you through TagBack — your phone number, email and address are never exposed on the tag.' },
+  { icon: ShieldCheck, title: 'Privacy by default', text: 'Finders contact you through TagBack , your phone number, email and address are never exposed on the tag.' },
   { icon: PackageSearch, title: 'Faster recovery', text: 'A clear, scannable tag turns an honest finder into a quick return instead of a trip to lost-and-found.' },
-  { icon: Palette, title: 'Customizable item pages', text: 'Add a name, photo and a personal message — even offer a reward — on each item’s QR page.' },
+  { icon: Palette, title: 'Customizable item pages', text: 'Add a name, photo and a personal message , even offer a reward , on each item’s QR page.' },
   { icon: Smartphone, title: 'No app for finders', text: 'Any modern phone camera opens the item page. Nothing to download, nothing to install.' },
   { icon: BellRing, title: 'Instant notifications', text: 'The moment someone scans a lost item, you’re alerted so you can respond right away.' },
-  { icon: Tag, title: 'One tag, reusable', text: 'Mark an item recovered and the tag resets — reactivate or move it to something new anytime.' },
+  { icon: Tag, title: 'One tag, reusable', text: 'Mark an item recovered and the tag resets , reactivate or move it to something new anytime.' },
 ];
 
 function Benefits() {
@@ -272,7 +272,7 @@ function Benefits() {
             Built to get your things home
           </h2>
           <p className="text-muted mt-3 text-[1.02rem]">
-            Everything you need to recover a lost item quickly — while keeping your personal
+            Everything you need to recover a lost item quickly , while keeping your personal
             information firmly in your control.
           </p>
         </Reveal>
@@ -313,7 +313,7 @@ function UseCases() {
             Tag anything worth keeping
           </h2>
           <p className="text-muted mt-3 text-[1.02rem]">
-            From everyday essentials to the gear you can’t afford to lose — if it can carry a
+            From everyday essentials to the gear you can’t afford to lose , if it can carry a
             tag, TagBack can bring it home.
           </p>
         </Reveal>
@@ -411,7 +411,7 @@ function Footer() {
         </div>
 
         <div className="mt-8 pt-6 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3 text-[.82rem] text-muted-2">
-          <span>© {new Date().getFullYear()} TagBack — lost &amp; found, handled.</span>
+          <span>© {new Date().getFullYear()} TagBack , lost &amp; found, handled.</span>
           <nav className="flex items-center gap-4">
             <Link to="/legal/terms" className="hover:text-ink">Terms</Link>
             <Link to="/legal/privacy" className="hover:text-ink">Privacy</Link>
@@ -422,7 +422,7 @@ function Footer() {
   );
 }
 
-// Public marketing landing page. Renders "bare" (no app chrome — see Chrome in
+// Public marketing landing page. Renders "bare" (no app chrome , see Chrome in
 // App.jsx) and brings its own header + footer. Signed-in visitors are redirected
 // to the dashboard before this mounts, so every CTA here targets the signed-out
 // flow (/register, /login) and the standalone legal routes.

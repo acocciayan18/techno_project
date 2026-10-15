@@ -41,8 +41,8 @@ function Notice({ icon: IconCmp, iconClass = 'text-muted', title, text }) {
 }
 
 // Shown when a finder scans a QR that is still AVAILABLE (never claimed). The id
-// is deliberately NOT printed on the sticker, so revealing it here — with a copy
-// button — is how the rightful owner gets it into the Activate page. A claimed /
+// is deliberately NOT printed on the sticker, so revealing it here , with a copy
+// button , is how the rightful owner gets it into the Activate page. A claimed /
 // pending / disabled QR never reaches this view (the backend gates `claimable`).
 function UnclaimedNotice({ qrId }) {
   const [copied, setCopied] = useState(false);
@@ -121,7 +121,7 @@ export default function PublicQr() {
       return <Notice icon={HelpCircle} title="Unknown QR code" text="This code is not in our system." />;
     case 'NOT_ACTIVATED':
       // claimable = AVAILABLE: reveal the id + copy button so the owner can activate.
-      // Otherwise a claim is already pending — don't present it as claimable.
+      // Otherwise a claim is already pending , don't present it as claimable.
       return data.claimable
         ? <UnclaimedNotice qrId={data.qrId || qrId} />
         : <Notice icon={Clock} iconClass="text-warn" title="Activation pending" text="Someone has already requested this QR code. It can’t be claimed until that request is resolved." />;

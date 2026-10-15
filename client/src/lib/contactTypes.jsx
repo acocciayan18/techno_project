@@ -8,7 +8,7 @@ import {
 // the Lucide icon (brand marks aren't in this Lucide build, so the label carries
 // recognition and the glyph is a supporting cue), a human label, the input hint,
 // how to validate the value, how to turn it into a tappable href for finders, and
-// how to show it. Add a new contact type by adding one entry here — the editor and
+// how to show it. Add a new contact type by adding one entry here , the editor and
 // the public page both read from this list.
 
 const digits = (v) => (v || '').replace(/[^\d]/g, '');
@@ -91,7 +91,7 @@ export function getContactType(type) {
 }
 
 // '' when the value is acceptable, else a short error string. Empty is always an
-// error — every shown field must carry a value.
+// error , every shown field must carry a value.
 export function validateContactValue(type, value) {
   const v = (value || '').trim();
   if (!v) return 'This field is required';

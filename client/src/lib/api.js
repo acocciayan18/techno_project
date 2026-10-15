@@ -37,7 +37,7 @@ async function request(method, path, { body, auth = true, form, signal } = {}) {
   } catch (e) {
     // Abort (user cancel) and network failures (offline) both land here.
     if (e.name === 'AbortError') throw Object.assign(new Error('Cancelled'), { aborted: true, status: 'ABORT' });
-    throw Object.assign(new Error('Network error — check your connection and try again'), { status: 0 });
+    throw Object.assign(new Error('Network error , check your connection and try again'), { status: 0 });
   }
   const text = await res.text();
   let data = null;
@@ -99,8 +99,8 @@ function uploadWithProgress(path, form, { onProgress, signal } = {}) {
       err.data = data;
       reject(err);
     };
-    xhr.onerror = () => reject(Object.assign(new Error('Network error — check your connection and try again'), { status: 0 }));
-    xhr.ontimeout = () => reject(Object.assign(new Error('Upload timed out — try again'), { status: 0 }));
+    xhr.onerror = () => reject(Object.assign(new Error('Network error , check your connection and try again'), { status: 0 }));
+    xhr.ontimeout = () => reject(Object.assign(new Error('Upload timed out , try again'), { status: 0 }));
     xhr.onabort = () => reject(abortErr());
     xhr.send(form);
   });

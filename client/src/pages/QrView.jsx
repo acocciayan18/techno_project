@@ -27,7 +27,7 @@ export default function QrView() {
   const confirm = useConfirm();
   const navigate = useNavigate();
 
-  // Owner deletes (releases) their own QR. Blocked while LOST — guard here so the
+  // Owner deletes (releases) their own QR. Blocked while LOST , guard here so the
   // user gets an answer without a round-trip; the backend enforces it regardless.
   function askDelete() {
     if (item?.status === 'LOST') {
@@ -40,7 +40,7 @@ export default function QrView() {
         <>
           Your item details, page customization and contact info for{' '}
           <span className="font-mono">{qrId}</span> are removed for good. The code itself is
-          released — you can activate it again later with its printed code.{' '}
+          released , you can activate it again later with its printed code.{' '}
           <strong className="text-ink">This can’t be undone.</strong>
         </>
       ),
@@ -142,7 +142,7 @@ export default function QrView() {
           {/* Actions split into a primary row (edit + status) and a separated,
               lower-emphasis destructive row so Delete can't crowd or overlap the
               main actions. Buttons stretch to fill on mobile, size to content on
-              wider screens — they never overflow the card. */}
+              wider screens , they never overflow the card. */}
           <div className="mt-4 flex flex-col gap-2.5">
             <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
               <Link className="btn btn-sm flex-1 sm:flex-none justify-center" to={`/qr/${qrId}/item`}>{item ? 'Edit item & page' : 'Register item'}</Link>

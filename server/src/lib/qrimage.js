@@ -9,6 +9,34 @@ export function publicBaseUrl() {
   return (process.env.PUBLIC_BASE_URL || process.env.VITE_API_BASE_URL || 'http://localhost:5173').replace(/\/+$/, '');
 }
 
+let warnedLocalhost = false;
+
+// Origin of the user-facing web app, used to build links sent in email (e.g. the
+// password-reset link). Prefers an explicit APP_URL, then PUBLIC_BASE_URL (the
+// same frontend origin QR codes point at), then the dev localhost default.
+//
+// A reset link must NEVER point at localhost in production — the recipient would
+// get an unreachable link. When running in production we refuse the localhost
+// fallback: if nothing is configured we warn loudly (once) and still return the
+// configured value so the failure is visible in logs rather than silently
+// shipping a broken link.
+export function appBaseUrl() {
+  const configured = (process.env.APP_URL || process.env.PUBLIC_BASE_URL || process.env.VITE_API_BASE_URL || '')
+    .trim()
+    .replace(/\/+$/, '');
+  const isProd = process.env.NODE_ENV === 'production';
+  const looksLocal = !configured || /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:|\/|$)/i.test(configured);
+
+  if (isProd && looksLocal && !warnedLocalhost) {
+    warnedLocalhost = true;
+    console.error(
+      '[config] APP_URL/PUBLIC_BASE_URL is unset or points at localhost in production. ' +
+        'Password-reset links will be unreachable. Set APP_URL to your deployed domain.'
+    );
+  }
+  return configured || 'http://localhost:5173';
+}
+
 export function publicUrlFor(qrId) {
   return `${publicBaseUrl()}/q/${qrId}`;
 }

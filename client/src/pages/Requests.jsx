@@ -9,19 +9,14 @@ import { tapProps } from '../components/motion.jsx';
 import Spinner from '../components/Spinner.jsx';
 import { SkeletonTable } from '../components/Skeleton.jsx';
 import { notify } from '../lib/toast.jsx';
+import { formatDate } from '../lib/date.js';
 
 const MotionLink = motion.create(Link);
-
-function fmtDate(iso) {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString();
-}
 
 // Visual + copy per request outcome.
 const STATUS_META = {
   PENDING: { badge: 'badge-amber', label: 'Pending review', Icon: Clock, tone: 'text-warn', blurb: 'An admin will review this request soon.' },
-  APPROVED: { badge: 'badge-green', label: 'Approved', Icon: Check, tone: 'text-success', blurb: 'Approved — this QR code is now yours.' },
+  APPROVED: { badge: 'badge-green', label: 'Approved', Icon: Check, tone: 'text-success', blurb: 'Approved , this QR code is now yours.' },
   REJECTED: { badge: 'badge-red', label: 'Rejected', Icon: Ban, tone: 'text-danger', blurb: 'This request was declined. You can try activating it again.' },
 };
 
@@ -69,7 +64,7 @@ export default function Requests() {
 
   return (
     <div>
-      <motion.button type="button" onClick={goBack} className="btn btn-ghost btn-sm self-start mb-3" {...tapProps}>
+      <motion.button type="button" onClick={goBack} className="btn btn-ghost btn-sm self-start mb-3 md:hidden" {...tapProps}>
         <ArrowLeft size={16} strokeWidth={2.5} /> Back
       </motion.button>
       <div className="flex items-center gap-3 flex-wrap mb-[1.1rem]">
@@ -78,7 +73,7 @@ export default function Requests() {
       </div>
       <p className="text-muted text-[.95rem] mt-0 mb-4 max-w-prose">
         Activation requests you’ve filed for QR codes you couldn’t activate with a printed code.
-        Track their status here — an admin reviews each one.
+        Track their status here , an admin reviews each one.
       </p>
 
       {error && <p className="status-msg status-error">{error}</p>}
@@ -122,8 +117,8 @@ export default function Requests() {
                 )}
 
                 <div className="text-xs text-muted flex flex-col gap-0.5">
-                  <span className="inline-flex items-center gap-1"><Clock size={13} strokeWidth={2.2} /> Requested {fmtDate(r.requestedAt)}</span>
-                  {r.decidedAt && <span className="inline-flex items-center gap-1 pl-[1.1rem]">Decided {fmtDate(r.decidedAt)}</span>}
+                  <span className="inline-flex items-center gap-1"><Clock size={13} strokeWidth={2.2} /> Requested {formatDate(r.requestedAt)}</span>
+                  {r.decidedAt && <span className="inline-flex items-center gap-1 pl-[1.1rem]">Decided {formatDate(r.decidedAt)}</span>}
                 </div>
 
                 <div className="flex gap-2 flex-wrap mt-auto pt-1">

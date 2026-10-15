@@ -5,7 +5,7 @@ import { tapProps } from '../components/motion.jsx';
 import { LEGAL_CONTACT_EMAIL } from '../lib/legal.js';
 
 // Frequently asked questions, grouped to mirror the dashboard's features. Each
-// answer is plain copy — kept short so the page stays scannable on mobile.
+// answer is plain copy , kept short so the page stays scannable on mobile.
 const FAQS = [
   {
     icon: Tag,
@@ -15,12 +15,12 @@ const FAQS = [
   {
     icon: Flag,
     q: 'How do I report an item lost or found?',
-    a: 'Open a code and tap “Mark as Lost” — its public finder page goes live so anyone who scans can help return it. When it’s back, tap “Mark as Found”. You can also mark several at once from the dashboard using Select.',
+    a: 'Open a code and tap “Mark as Lost” , its public finder page goes live so anyone who scans can help return it. When it’s back, tap “Mark as Found”. You can also mark several at once from the dashboard using Select.',
   },
   {
     icon: Eye,
     q: 'Who can see my contact details?',
-    a: 'Only the contact fields you switch on are ever shown, and only while an item is reported lost — unless you turn on “Always show information” for that item. Everything else stays private.',
+    a: 'Only the contact fields you switch on are ever shown, and only while an item is reported lost , unless you turn on “Always show information” for that item. Everything else stays private.',
   },
   {
     icon: Palette,
@@ -35,7 +35,7 @@ const FAQS = [
   {
     icon: Tag,
     q: 'What happens when I delete a QR code?',
-    a: 'Your item details, page customization and contact info are removed, and the code returns to unused — you can activate it again later with its printed code. Mark a lost item found before deleting it.',
+    a: 'Your item details, page customization and contact info are removed, and the code returns to unused , you can activate it again later with its printed code. Mark a lost item found before deleting it.',
   },
 ];
 

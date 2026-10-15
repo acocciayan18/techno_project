@@ -40,7 +40,7 @@ export default function More() {
 
   return (
     <div className="w-full">
-      <motion.button type="button" onClick={goBack} className="btn btn-ghost btn-sm self-start mb-3" whileTap={{ scale: 0.98 }}>
+      <motion.button type="button" onClick={goBack} className="btn btn-ghost btn-sm self-start mb-3 md:hidden" whileTap={{ scale: 0.98 }}>
         <ArrowLeft size={16} strokeWidth={2.5} /> Back
       </motion.button>
       <h1 className="mb-[1.1rem]">More</h1>
@@ -76,7 +76,7 @@ export default function More() {
         </>
       )}
 
-      {/* Appearance control. Shown for everyone — including admins, whose chrome
+      {/* Appearance control. Shown for everyone , including admins, whose chrome
           header has no toggle of its own, so this is their light/dark switch. */}
       <h3 className="font-display text-muted text-[.74rem] font-semibold uppercase tracking-wide mt-5 mb-2.5">Appearance</h3>
       <nav className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[.6rem]">

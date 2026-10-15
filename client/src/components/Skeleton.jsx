@@ -1,4 +1,4 @@
-// Skeleton loaders — placeholder shapes shown while content loads, instead of a
+// Skeleton loaders , placeholder shapes shown while content loads, instead of a
 // bare "Loading…" line. Built from Tailwind + the design tokens so they match
 // light/dark automatically. `bg-muted-bg` (surface-3) is the shimmer fill;
 // `animate-pulse` is the motion (honours prefers-reduced-motion via index.css).

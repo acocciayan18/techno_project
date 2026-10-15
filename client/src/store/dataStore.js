@@ -12,7 +12,7 @@ export const useDataStore = create((set, get) => ({
   cache: {}, // key -> { data, error, loading, loaded, ts }
 
   // Fetch (or revalidate) a key. Keeps any cached data visible during a
-  // background refetch — `loading` only flips true when there's nothing yet.
+  // background refetch , `loading` only flips true when there's nothing yet.
   async fetch(key, fetcher) {
     const prev = get().cache[key];
     const hasData = !!prev?.loaded;
@@ -35,7 +35,7 @@ export const useDataStore = create((set, get) => ({
   },
 
   // Re-run a cached key's last fetcher in place (background refresh). No-op if the
-  // key was never fetched — nothing is mounted/interested in it yet.
+  // key was never fetched , nothing is mounted/interested in it yet.
   revalidate(key) {
     const entry = get().cache[key];
     if (entry?.fetcher) get().fetch(key, entry.fetcher);
@@ -74,7 +74,7 @@ export const useDataStore = create((set, get) => ({
     });
   },
 
-  // Wipe everything — called on login/logout so one account never shows
+  // Wipe everything , called on login/logout so one account never shows
   // another's cached data.
   reset() {
     set({ cache: {} });
@@ -91,7 +91,7 @@ export function useResource(key, fetcher) {
   useEffect(() => {
     fetchKey(key, fetcher);
     // fetcher is recreated each render; keying the effect on `key` alone is
-    // intentional — we revalidate once per navigation to this key.
+    // intentional , we revalidate once per navigation to this key.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 

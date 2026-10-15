@@ -14,13 +14,14 @@ import { SkeletonStats, SkeletonCards } from '../components/Skeleton.jsx';
 import NotificationBell from '../components/NotificationBell.jsx';
 import { useNotifications, relativeTime } from '../lib/useNotifications.js';
 import { notify } from '../lib/toast.jsx';
+import { formatDate } from '../lib/date.js';
 
 const MotionLink = motion.create(Link);
 const ITEM_BADGE = { ACTIVE: 'badge-green', LOST: 'badge-red', RECOVERED: 'badge-blue' };
 const STATUS_MSG = { LOST: 'Marked as lost.', RECOVERED: 'Marked as found.', ACTIVE: 'Reset to active.' };
 
 // Tag UI Kit stat tile: coloured icon chip, big tabular number, muted label.
-// `.stat-body` reflows via a container query (see index.css) — icon-beside-value
+// `.stat-body` reflows via a container query (see index.css) , icon-beside-value
 // when the tile is wide, stacked when it isn't.
 const TONES = {
   accent: 'bg-accent-weak text-primary',
@@ -47,7 +48,7 @@ function Stat({ label, value, icon: IconCmp, tone = 'gray' }) {
   );
 }
 
-// One label/number line in a breakdown list — dividers instead of boxes keeps
+// One label/number line in a breakdown list , dividers instead of boxes keeps
 // the secondary metrics quiet. Actionable counts (pending, lost) go amber.
 function BreakRow({ label, value, attention }) {
   const hot = attention && value > 0;
@@ -66,7 +67,7 @@ const MGMT = [
 ];
 
 // Admin-only block: a few headline numbers, quiet breakdowns, and quick links
-// into the management pages — detail lives on those pages, not here.
+// into the management pages , detail lives on those pages, not here.
 function AdminOverview() {
   const { data: stats, error, loading } = useResource('admin/stats', () => api.get('/admin/stats'));
 
@@ -141,7 +142,7 @@ const FILTERS = [
 ];
 
 // Recent finder reports, surfaced inline on the dashboard. Same data as the nav
-// bell, but shown at a glance here — the latest sightings of the owner's items,
+// bell, but shown at a glance here , the latest sightings of the owner's items,
 // newest first. Renders nothing when there's no activity.
 function RecentActivity() {
   const { list } = useNotifications();
@@ -166,7 +167,7 @@ function RecentActivity() {
               </span>
               <span className="mt-0.5 flex items-center gap-2 text-[.72rem] text-muted-2">
                 <span className="font-mono font-semibold bg-surface border border-border rounded-xs px-1.5 py-0.5">{n.qrId}</span>
-                <span title={n.createdAt || ''}>{relativeTime(n.createdAt)}</span>
+                <span title={formatDate(n.createdAt)}>{relativeTime(n.createdAt)}</span>
               </span>
             </span>
             <ChevronRight size={17} strokeWidth={2} className="flex-none text-muted-2" />
@@ -208,7 +209,7 @@ export default function Dashboard() {
     });
   }
 
-  // Owner summary derived from the codes we already have — no extra request.
+  // Owner summary derived from the codes we already have , no extra request.
   const list = qrcodes || [];
   const counts = {
     active: list.filter((q) => q.item?.status === 'ACTIVE').length,
@@ -216,7 +217,7 @@ export default function Dashboard() {
     recovered: list.filter((q) => q.item?.status === 'RECOVERED').length,
   };
 
-  // Codes that survive the active search + status filter — what the grid renders
+  // Codes that survive the active search + status filter , what the grid renders
   // and what the bulk actions operate on.
   const q = query.trim().toLowerCase();
   const activeFilter = FILTERS.find((f) => f.key === statusFilter) || FILTERS[0];
@@ -319,14 +320,18 @@ export default function Dashboard() {
             {isAdmin ? 'System status and your codes at a glance.' : 'Here’s what needs you.'}
           </p>
         </div>
-        <div className="flex items-center gap-2.5 flex-none">
-          {/* The desktop top bar already carries the bell; on mobile (no top bar)
-              it lives here so finder reports are reachable from the dashboard. */}
-          <span className="md:hidden"><NotificationBell /></span>
-          <MotionLink className="btn btn-primary justify-center" to="/activate" {...tapProps}>
-            <Plus size={18} strokeWidth={2.5} /> Activate
-          </MotionLink>
-        </div>
+        {/* Owner actions only: the bell (finder reports) and Activate are regular-user
+            features. Admins manage inventory/claims instead, so this stays empty for them. */}
+        {!isAdmin && (
+          <div className="flex items-center gap-2.5 flex-none">
+            {/* The desktop top bar already carries the bell; on mobile (no top bar)
+                it lives here so finder reports are reachable from the dashboard. */}
+            <span className="md:hidden"><NotificationBell /></span>
+            <MotionLink className="btn btn-primary justify-center" to="/activate" {...tapProps}>
+              <Plus size={18} strokeWidth={2.5} /> Activate
+            </MotionLink>
+          </div>
+        )}
       </div>
 
       {isAdmin && <AdminOverview />}
@@ -348,7 +353,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      <RecentActivity />
+      {/* Finder-report activity is an owner feature; admins don't see it. */}
+      {!isAdmin && <RecentActivity />}
 
       <div className="flex items-center justify-between gap-3 mb-4">
         <h2 className="m-0">My QR codes</h2>
@@ -421,7 +427,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Bulk action bar — visible in select mode; actions apply to the checked codes. */}
+      {/* Bulk action bar , visible in select mode; actions apply to the checked codes. */}
       {selectMode && qrcodes && qrcodes.length > 0 && (
         <div className="card !mb-4 flex items-center gap-3 flex-wrap !py-3">
           <label className="flex items-center gap-2 text-sm font-semibold cursor-pointer">
@@ -450,7 +456,7 @@ export default function Dashboard() {
         <div className="card text-center flex flex-col items-center gap-3 py-8">
           <span className="w-12 h-12 grid place-items-center rounded-[12px] bg-accent-weak text-primary"><QrCode size={24} strokeWidth={2} /></span>
           <p className="text-muted m-0">You have no QR codes yet.</p>
-          <MotionLink className="btn btn-primary" to="/activate" {...tapProps}>Activate your first QR</MotionLink>
+          {!isAdmin && <MotionLink className="btn btn-primary" to="/activate" {...tapProps}>Activate your first QR</MotionLink>}
         </div>
       )}
 

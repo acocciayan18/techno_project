@@ -5,15 +5,22 @@
 // The forgot-password endpoint always responds generically regardless of what
 // happens here, so delivery success/failure is never leaked to the caller.
 //
+// Every message is sent as a branded HTML part WITH a plain-text alternative
+// (built in lib/emailTemplates.js) so it renders in rich clients and stays
+// readable / deliverable in text-only ones.
+//
 // Required env vars to send real mail:
 //   BREVO_API_KEY     your Brevo API key (starts with "xkeysib-")
 //   SMTP_FROM         a sender address VERIFIED in your Brevo account
 //   MAIL_FROM_NAME    optional display name (defaults to APP_NAME)
+//   MAIL_REPLY_TO     optional Reply-To address (support inbox)
+
+import { passwordResetEmail } from './emailTemplates.js';
 
 const APP_NAME = 'TagBack';
 const BREVO_ENDPOINT = 'https://api.brevo.com/v3/smtp/email';
 
-async function transport({ to, subject, text }) {
+async function transport({ to, subject, html, text }) {
   const apiKey = process.env.BREVO_API_KEY;
   const fromEmail = process.env.SMTP_FROM;
 
@@ -25,6 +32,16 @@ async function transport({ to, subject, text }) {
     return false;
   }
 
+  const payload = {
+    sender: { email: fromEmail, name: process.env.MAIL_FROM_NAME || APP_NAME },
+    to: [{ email: to }],
+    subject,
+    htmlContent: html,
+    textContent: text,
+  };
+  const replyTo = process.env.MAIL_REPLY_TO;
+  if (replyTo) payload.replyTo = { email: replyTo };
+
   try {
     const res = await fetch(BREVO_ENDPOINT, {
       method: 'POST',
@@ -33,12 +50,7 @@ async function transport({ to, subject, text }) {
         'content-type': 'application/json',
         accept: 'application/json',
       },
-      body: JSON.stringify({
-        sender: { email: fromEmail, name: process.env.MAIL_FROM_NAME || APP_NAME },
-        to: [{ email: to }],
-        subject,
-        textContent: text,
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!res.ok) {
@@ -53,14 +65,13 @@ async function transport({ to, subject, text }) {
   }
 }
 
-export async function sendPasswordReset({ to, link }) {
-  const subject = `${APP_NAME} — reset your password`;
-  const text =
-    `We received a request to reset your ${APP_NAME} password.\n\n` +
-    `Reset it here (valid for 1 hour):\n${link}\n\n` +
-    `If you didn't request this, you can ignore this email.`;
+// Sends the password-reset email. Returns true if handed to the provider, false
+// if it fell back to the console (dev / misconfigured). Callers MUST stay generic
+// to the end user regardless of this result (no enumeration / no delivery leak).
+export async function sendPasswordReset({ to, link, name = '', minutes = 60 }) {
+  const { subject, html, text } = passwordResetEmail({ link, minutes, name });
 
-  const sent = await transport({ to, subject, text });
+  const sent = await transport({ to, subject, html, text });
   if (!sent) {
     // Dev fallback: make the link copy-pasteable from the server log.
     console.log(
@@ -70,4 +81,5 @@ export async function sendPasswordReset({ to, link }) {
         '================================================================\n'
     );
   }
+  return sent;
 }

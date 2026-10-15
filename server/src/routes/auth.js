@@ -5,7 +5,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 import { signToken } from '../lib/jwt.js';
 import { sendPasswordReset } from '../lib/mailer.js';
-import { publicBaseUrl } from '../lib/qrimage.js';
+import { appBaseUrl } from '../lib/qrimage.js';
 import { verifyCaptcha } from '../lib/captcha.js';
 import { canonicalizeEmail } from '../lib/email.js';
 import { publishToUser, publishToAdmins } from '../lib/events.js';
@@ -23,6 +23,7 @@ import {
   recordFailedAttempt,
   clearLoginThrottle,
   issueResetToken,
+  resetRequestedRecently,
   findByResetToken,
   resetPassword,
   updateSettings,
@@ -51,10 +52,13 @@ const resetLimiter = rateLimit({ ...RATE_LIMIT.RESET, bucket: 'reset', keyBy: 'i
 // so this stops a hammer on the settings write / profile read. Keyed per account.
 const meLimiter = rateLimit({ ...RATE_LIMIT.ME, bucket: 'me', keyBy: 'user' });
 
-// Shared password rule: 8+ chars with at least one letter and one number.
+// Shared password rule: 8+ chars with at least one letter and one number, capped
+// at PASSWORD_MAX (bcrypt only hashes the first 72 bytes — reject absurd input
+// defensively rather than silently truncating it).
 const password = z
   .string()
   .min(8, 'Password must be at least 8 characters')
+  .max(AUTH.PASSWORD_MAX, `Password must be at most ${AUTH.PASSWORD_MAX} characters`)
   .regex(/[A-Za-z]/, 'Password must contain a letter')
   .regex(/[0-9]/, 'Password must contain a number');
 
@@ -243,11 +247,24 @@ const GENERIC_FORGOT = 'If an account with a recovery email exists, a reset link
 router.post('/forgot-password', forgotLimiter, validate(forgotSchema), async (req, res, next) => {
   try {
     const user = await findByUsername(req.body.username);
-    if (user && user.recoveryEmail && !user.disabled) {
+    // Only act for a real, enabled account that has a recovery email on file.
+    // The per-account cooldown (resetRequestedRecently) suppresses a reissue/resend
+    // when a still-valid link was just sent — so hammering "send" can't flood one
+    // mailbox — without changing the response below.
+    if (user && user.recoveryEmail && !user.disabled && !resetRequestedRecently(user)) {
       const token = await issueResetToken(user.uid);
-      const link = `${publicBaseUrl()}/reset-password?token=${token}`;
-      await sendPasswordReset({ to: user.recoveryEmail, link });
+      const link = `${appBaseUrl()}/reset-password?token=${encodeURIComponent(token)}`;
+      // Delivery result is intentionally ignored for the HTTP response (no leak);
+      // the mailer logs its own failures.
+      await sendPasswordReset({
+        to: user.recoveryEmail,
+        link,
+        name: user.name,
+        minutes: Math.round(AUTH.RESET_TTL_MS / 60000),
+      });
     }
+    // Identical response in every branch (unknown user, no recovery email,
+    // disabled, cooling down, or sent) so nothing can be enumerated.
     res.json({ message: GENERIC_FORGOT });
   } catch (e) {
     next(e);
@@ -270,6 +287,14 @@ router.post('/reset-password', resetLimiter, validate(resetSchema), async (req, 
   try {
     const user = await findByResetToken(req.body.token);
     if (!user) return res.status(400).json({ error: 'This reset link is invalid or has expired.' });
+    // The token proves control of the account, so it's safe to tell the user their
+    // new password matches the current one — block it so a "reset" is a real change.
+    if (await verifyPassword(user, req.body.password)) {
+      return res.status(400).json({
+        error: 'Choose a password different from your current one.',
+        details: [{ path: 'password', message: 'Choose a password different from your current one.' }],
+      });
+    }
     await resetPassword(user.uid, req.body.password);
     res.json({ message: 'Password updated. You can now log in.' });
   } catch (e) {

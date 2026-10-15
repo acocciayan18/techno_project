@@ -100,7 +100,7 @@ export default function PhotoField({ qrId, item, onChange }) {
   function handleError(e) {
     if (e?.aborted) {
       notify.info('Upload cancelled.');
-      return; // not a failure state — no retry offered
+      return; // not a failure state , no retry offered
     }
     setFailed(true);
     notify.error(e?.message || 'Could not update the photo.');
@@ -150,7 +150,7 @@ export default function PhotoField({ qrId, item, onChange }) {
     retryRef.current = () => importUrl();
     setFailed(false);
     setBusy(true);
-    setProgress(null); // server does the fetching — progress is indeterminate
+    setProgress(null); // server does the fetching , progress is indeterminate
     setStatusText('Importing…');
     try {
       const res = await api.post(`/owner/items/${qrId}/photo-url`, { url: value }, { signal: controller.signal });
@@ -284,7 +284,7 @@ export default function PhotoField({ qrId, item, onChange }) {
                         onError={() => setUrlPreviewOk(false)}
                       />
                       {urlPreviewOk === false
-                        ? <span className="text-warn">Preview couldn’t load — the server will validate it on import.</span>
+                        ? <span className="text-warn">Preview couldn’t load , the server will validate it on import.</span>
                         : <span>Preview</span>}
                     </div>
                   )}
@@ -330,7 +330,7 @@ export default function PhotoField({ qrId, item, onChange }) {
       {/* Offline banner */}
       {offline && (
         <p className="status-msg status-error flex items-center gap-2 !mt-0 text-[.85rem]">
-          <WifiOff size={16} /> You’re offline — photo changes are paused until you reconnect.
+          <WifiOff size={16} /> You’re offline , photo changes are paused until you reconnect.
         </p>
       )}
 

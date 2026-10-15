@@ -28,9 +28,9 @@ export default function Terms() {
         </P>
         <P>There are three ways people use the Service:</P>
         <Bullets items={[
-          'Owners — register an account, activate a sticker, attach an item, and choose what a finder sees.',
-          'Finders — scan a sticker without an account to see the public page and, when an item is reported lost, the contact details the owner chose to publish.',
-          'Administrators — operate the Service: generate sticker inventory, review activation requests, and manage accounts and codes.',
+          'Owners , register an account, activate a sticker, attach an item, and choose what a finder sees.',
+          'Finders , scan a sticker without an account to see the public page and, when an item is reported lost, the contact details the owner chose to publish.',
+          'Administrators , operate the Service: generate sticker inventory, review activation requests, and manage accounts and codes.',
         ]} />
       </Section>
 
@@ -47,7 +47,7 @@ export default function Terms() {
       <Section n={4} title="Stickers, activation, and ownership">
         <P>
           Each sticker carries a secret one-time activation code printed with the product. Activating
-          requires both the sticker’s id and its code — knowing the id alone (which any finder can
+          requires both the sticker’s id and its code , knowing the id alone (which any finder can
           see) does not grant ownership. If you do not have the code, you may submit a request for an
           administrator to review. You agree to activate only stickers you legitimately possess and
           not to claim items that are not yours. We may disable a sticker or decline a claim where
@@ -70,7 +70,7 @@ export default function Terms() {
       <Section n={6} title="How public pages work">
         <P>
           Contact details you mark as shown are exposed to finders only while the item is reported
-          lost — or, if you deliberately turn on the “always show info” option, whenever the page is
+          lost , or, if you deliberately turn on the “always show info” option, whenever the page is
           viewed. When an item is not lost, the public page acknowledges only that the item is
           registered. Marking an item recovered returns the page to that limited state.
         </P>

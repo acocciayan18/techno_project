@@ -42,7 +42,7 @@ export default function LegalLayout({ title, subtitle, children, crossLink }) {
 
       <footer className="border-t border-border mt-auto">
         <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 py-3.5 text-[.82rem] text-muted-2 flex flex-wrap items-center justify-between gap-2">
-          <span>TagBack — lost &amp; found, handled.</span>
+          <span>TagBack , lost &amp; found, handled.</span>
           <nav className="flex items-center gap-4">
             <Link to="/legal/terms" className="hover:text-ink">Terms</Link>
             <Link to="/legal/privacy" className="hover:text-ink">Privacy</Link>

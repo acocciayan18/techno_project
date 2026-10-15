@@ -51,12 +51,12 @@ const qrCore = (s) => s.replace(/^QR-/, '');
 function describeQrState(data) {
   switch (data.state) {
     case 'NOT_FOUND':
-      return { tone: 'red', Icon: XCircle, blocking: true, msg: 'No QR exists with this code — check the printed id.' };
+      return { tone: 'red', Icon: XCircle, blocking: true, msg: 'No QR exists with this code , check the printed id.' };
     case 'DISABLED':
       return { tone: 'red', Icon: Ban, blocking: true, msg: 'This QR has been disabled and can’t be activated.' };
     case 'NOT_ACTIVATED':
       return data.claimable
-        ? { tone: 'green', Icon: CheckCircle2, blocking: false, msg: 'Unused QR — ready to activate with its code.' }
+        ? { tone: 'green', Icon: CheckCircle2, blocking: false, msg: 'Unused QR , ready to activate with its code.' }
         : { tone: 'amber', Icon: AlertTriangle, blocking: true, msg: 'A claim is already pending for this QR.' };
     default:
       // Any ACTIVATED state (NO_ITEM / REGISTERED_NOT_LOST / LOST / RECOVERED / PUBLIC_INFO)
@@ -65,7 +65,7 @@ function describeQrState(data) {
 }
 
 // Small, focused confirmation modal shown right before a QR is linked to the
-// account — reuses the portal + spring pattern from QrPrintDialog.
+// account , reuses the portal + spring pattern from QrPrintDialog.
 function ConfirmActivate({ qrId, busy, onConfirm, onCancel }) {
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && !busy && onCancel();
@@ -160,7 +160,7 @@ export default function ActivateQr() {
     setBusy(true);
     try {
       const { qrId: activated } = await api.post('/owner/qr/activate', { qrId, secret });
-      notify.success(`${activated} activated — now register your item.`);
+      notify.success(`${activated} activated , now register your item.`);
       navigate(`/qr/${activated}/item`, { replace: true });
     } catch (err) {
       setConfirming(false);
@@ -276,7 +276,7 @@ export default function ActivateQr() {
                   /></div>
                   {secretInvalid && (
                     <p className="text-danger text-xs mt-1 mb-0">
-                      Enter all {SECRET_LEN} characters — {secretCore(secret).length} so far.
+                      Enter all {SECRET_LEN} characters , {secretCore(secret).length} so far.
                     </p>
                   )}
                 </label>
@@ -315,7 +315,7 @@ export default function ActivateQr() {
           )}
         </div>
 
-        {/* Aside: how it works — fills the remaining width, consistent with other pages */}
+        {/* Aside: how it works , fills the remaining width, consistent with other pages */}
         <aside className="card bg-surface">
           <h3 className="mt-0 flex items-center gap-2"><PackageCheck size={18} strokeWidth={2.2} className="text-primary" /> How activation works</h3>
           <ol className="text-muted text-[.9rem] leading-relaxed pl-5 m-0 flex flex-col gap-2 list-decimal">
@@ -325,7 +325,7 @@ export default function ActivateQr() {
           </ol>
           <hr className="border-0 border-t border-border my-4" />
           <p className="text-muted-2 text-[.82rem] m-0">
-            No code? Use <strong>Request Approval</strong> to request manual review — an admin verifies ownership before activating.
+            No code? Use <strong>Request Approval</strong> to request manual review , an admin verifies ownership before activating.
           </p>
           <Link to="/help" className="btn btn-ghost btn-sm mt-3 w-full justify-center">
             <LifeBuoy size={15} strokeWidth={2.5} /> Help &amp; support

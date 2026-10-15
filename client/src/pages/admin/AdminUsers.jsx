@@ -36,7 +36,7 @@ export default function AdminUsers() {
         }
       });
 
-    // Re-enabling restores access — harmless, so act immediately.
+    // Re-enabling restores access , harmless, so act immediately.
     if (!disabling) return doToggle();
 
     // Disabling locks the user out and ends their session on the next request.
@@ -78,7 +78,7 @@ export default function AdminUsers() {
                 aria-label={`View @${u.username}`}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(u.uid); } }}
               >
-                <td>{u.name || '—'}</td>
+                <td>{u.name || 'N/A'}</td>
                 <td className="font-mono">@{u.username}</td>
                 <td><span className={`badge ${u.role === 'admin' ? 'badge-blue' : 'badge-gray'}`}>{u.role}</span></td>
                 <td><span className={`badge ${u.disabled ? 'badge-red' : 'badge-green'}`}>{u.disabled ? 'Disabled' : 'Active'}</span></td>

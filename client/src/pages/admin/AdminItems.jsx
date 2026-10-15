@@ -25,7 +25,7 @@ export default function AdminItems() {
             {items.map((it) => (
               <tr key={it.qrId}>
                 <td className="font-mono">{it.qrId}</td>
-                <td><span className="block max-w-[16rem] truncate" title={it.name || undefined}>{it.name || '—'}</span></td>
+                <td><span className="block max-w-[16rem] truncate" title={it.name || undefined}>{it.name || 'N/A'}</span></td>
                 <td><span className={`badge ${BADGE[it.status] || 'badge-gray'}`}>{it.status}</span></td>
               </tr>
             ))}

@@ -30,12 +30,14 @@ import Help from './pages/Help.jsx';
 
 const MotionNavLink = motion.create(NavLink);
 
-function ProtectedRoute({ children, admin }) {
+function ProtectedRoute({ children, admin, userOnly }) {
   const { user, loading, isAdmin } = useAuth();
   const location = useLocation();
   if (loading) return <CenterSpinner label="Loading your account…" />;
   if (!user) return <Navigate to="/login" state={{ from: location }} replace />;
   if (admin && !isAdmin) return <Navigate to="/dashboard" replace />;
+  // Regular-user-only pages (e.g. QR activation): admins are bounced home.
+  if (userOnly && isAdmin) return <Navigate to="/dashboard" replace />;
   return children;
 }
 
@@ -90,7 +92,8 @@ function TopBar() {
         </div>
         <div className="flex items-center gap-2.5 flex-none">
           {isAdmin && <RoleTag />}
-          <NotificationBell />
+          {/* Finder-report notifications are an owner feature; admins don't get a bell. */}
+          {!isAdmin && <NotificationBell />}
           <span className="avatar w-9 h-9 text-[.82rem]" title={user?.username}>{initial}</span>
         </div>
       </div>
@@ -241,7 +244,7 @@ export default function App() {
         <Route path="/reset-password" element={<ResetPassword />} />
 
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-        <Route path="/activate" element={<ProtectedRoute><ActivateQr /></ProtectedRoute>} />
+        <Route path="/activate" element={<ProtectedRoute userOnly><ActivateQr /></ProtectedRoute>} />
         <Route path="/qr/:qrId" element={<ProtectedRoute><QrView /></ProtectedRoute>} />
         <Route path="/qr/:qrId/item" element={<ProtectedRoute><ItemManage /></ProtectedRoute>} />
         {/* Legacy customize link folds into the unified manage page. */}
@@ -251,7 +254,7 @@ export default function App() {
         {/* User's own activation-request tracker. */}
         <Route path="/my-requests" element={<ProtectedRoute><Requests /></ProtectedRoute>} />
 
-        {/* Admin-only feature pages — same app, same chrome, gated by role. */}
+        {/* Admin-only feature pages , same app, same chrome, gated by role. */}
         <Route path="/requests" element={<ProtectedRoute admin><AdminRequests /></ProtectedRoute>} />
         <Route path="/inventory" element={<ProtectedRoute admin><AdminInventory /></ProtectedRoute>} />
         <Route path="/users" element={<ProtectedRoute admin><AdminUsers /></ProtectedRoute>} />
@@ -262,10 +265,10 @@ export default function App() {
         <Route path="/admin/users" element={<Navigate to="/users" replace />} />
         <Route path="/admin/items" element={<Navigate to="/items" replace />} />
 
-        {/* Public finder route — the permanent URL a physical QR encodes. */}
+        {/* Public finder route , the permanent URL a physical QR encodes. */}
         <Route path="/q/:qrId" element={<PublicQr />} />
 
-        {/* Standalone legal pages — reachable signed-in or signed-out. */}
+        {/* Standalone legal pages , reachable signed-in or signed-out. */}
         <Route path="/legal/terms" element={<Terms />} />
         <Route path="/legal/privacy" element={<Privacy />} />
 

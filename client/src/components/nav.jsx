@@ -31,8 +31,12 @@ export function useNavItems() {
   const { isAdmin } = useAuth();
   const items = [
     { to: '/dashboard', label: 'Home', icon: 'home' },
-    { to: '/activate', label: 'Activate', icon: 'tag' },
   ];
+  // Activation is a regular-user action only; admins manage inventory and approve
+  // claims instead, so they never see an Activate entry.
+  if (!isAdmin) {
+    items.push({ to: '/activate', label: 'Activate', icon: 'tag' });
+  }
   if (isAdmin) {
     items.push(
       { to: '/inventory', label: 'Inventory', icon: 'box', desc: 'QR code stock & status' },

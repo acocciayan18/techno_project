@@ -103,6 +103,7 @@ export async function createUser({ username, password, name, recoveryEmail, role
     lockedUntil: null,
     resetTokenHash: null,
     resetExpires: null,
+    resetRequestedAt: null,
     // Bumped whenever the account's password changes (admin edit, self-reset) so
     // any JWT minted before the change is rejected server-side — a stateless token
     // otherwise stays valid until expiry. The signed token carries this value; the
@@ -211,14 +212,29 @@ function hashToken(raw) {
 }
 
 // Issues a reset token for a user: stores only its hash + expiry, returns the
-// raw token (to be delivered out-of-band, never persisted in the clear).
+// raw token (to be delivered out-of-band, never persisted in the clear). Issuing
+// a new token invalidates any previous one (single active token per account) and
+// stamps the request time for the per-account resend cooldown.
 export async function issueResetToken(uid) {
   const raw = crypto.randomBytes(32).toString('hex');
   await col().doc(uid).update({
     resetTokenHash: hashToken(raw),
     resetExpires: new Date(Date.now() + AUTH.RESET_TTL_MS).toISOString(),
+    resetRequestedAt: new Date().toISOString(),
   });
   return raw;
+}
+
+// True when this account was issued a reset token within the resend-cooldown
+// window AND that token is still valid. Lets the forgot-password route skip
+// reissuing/resending for rapid repeat requests without changing its response.
+export function resetRequestedRecently(user) {
+  if (!user?.resetRequestedAt) return false;
+  const age = Date.now() - Date.parse(user.resetRequestedAt);
+  if (!(age >= 0 && age < AUTH.RESET_REQUEST_COOLDOWN_MS)) return false;
+  // Only suppress while the existing token is still usable; an expired token
+  // should always be replaceable.
+  return !!(user.resetExpires && Date.parse(user.resetExpires) > Date.now());
 }
 
 // Resolves a raw reset token to its (still-valid) user, or null.
@@ -238,6 +254,7 @@ export async function resetPassword(uid, newPassword) {
     passwordHash,
     resetTokenHash: null,
     resetExpires: null,
+    resetRequestedAt: null,
     failedAttempts: 0,
     lockedUntil: null,
     // Invalidate every JWT issued before this reset.

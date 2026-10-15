@@ -9,7 +9,7 @@ import { CheckCircle2, XCircle, AlertTriangle, Info } from 'lucide-react';
 // De-dupe: a toast's id defaults to `type:message`, so firing the same
 // notification again (a rapid double-tap, a retried request) updates the live
 // toast in place instead of stacking a second identical one. Pass an explicit
-// `id` to override — e.g. to update a loading toast into a success/error.
+// `id` to override , e.g. to update a loading toast into a success/error.
 //
 //   notify.success('Item saved');
 //   notify.error(err.message);

@@ -5,7 +5,7 @@ import { notify } from '../lib/toast.jsx';
 import { setThemeMode, THEME_MODES } from '../lib/theme.js';
 
 // When a session is (re)established on this device, the account's stored theme is
-// authoritative — apply it so preferences follow the user across devices.
+// authoritative , apply it so preferences follow the user across devices.
 function syncThemeFromUser(user) {
   const t = user?.settings?.theme;
   if (THEME_MODES.includes(t)) setThemeMode(t);
@@ -14,7 +14,7 @@ function syncThemeFromUser(user) {
 // Global auth state (Zustand). The signed-in user and the app-boot "loading"
 // flag live here so any component can read them without prop-drilling or a
 // provider. `useAuth` (context/AuthContext.jsx) is a thin selector wrapper kept
-// for backwards compatibility — nothing else needs to change.
+// for backwards compatibility , nothing else needs to change.
 export const useAuthStore = create((set, get) => ({
   user: null,
   loading: true,       // true until the initial /auth/me check resolves

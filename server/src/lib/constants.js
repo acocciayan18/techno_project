@@ -137,7 +137,14 @@ export const TEXT_LIMITS = {
 export const AUTH = {
   MAX_LOGIN_ATTEMPTS: 5,
   LOCK_WINDOW_MS: 15 * 60 * 1000, // 15 minutes
-  RESET_TTL_MS: 60 * 60 * 1000, // 1 hour
+  RESET_TTL_MS: 60 * 60 * 1000, // 1 hour — password-reset token lifetime
+  // Per-ACCOUNT cooldown between reset emails. The per-IP FORGOT rate limit blunts
+  // email bombing from one source; this stops a single mailbox being flooded even
+  // from rotating IPs. While a freshly issued token is still within this window we
+  // neither reissue nor resend — the response stays identical (no enumeration), so
+  // a legit user who clicks "send" twice just reuses the link already in their inbox.
+  RESET_REQUEST_COOLDOWN_MS: 60 * 1000, // 1 minute
+  PASSWORD_MAX: 200, // hard ceiling — bcrypt only hashes the first 72 bytes; cap input defensively
   USERNAME_RE: /^[a-z0-9_]{3,20}$/, // lowercase letters, digits, underscore
 };
 

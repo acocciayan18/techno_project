@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 // Shared, minimal motion primitives so animation stays consistent and subtle
 // across the app and matches the Neo-Brutalist feel (quick, snappy, no bounce).
 
-// Page enter/exit — small fade + slide. Keyed by route in <Chrome>.
+// Page enter/exit , small fade + slide. Keyed by route in <Chrome>.
 export const pageVariants = {
   initial: { opacity: 0, y: 8 },
   animate: { opacity: 1, y: 0 },

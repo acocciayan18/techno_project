@@ -13,19 +13,7 @@ import PasswordInput from './PasswordInput.jsx';
 import { usernameError, passwordError } from '../lib/validators.js';
 import { LIMITS } from '../lib/limits.js';
 import { notify } from '../lib/toast.jsx';
-
-function fmtDate(iso) {
-  if (!iso) return '—';
-  // Handle both ISO strings (memory DB) and Firestore Timestamp shapes (cloud).
-  const value =
-    iso && typeof iso === 'object'
-      ? (iso._seconds ?? iso.seconds) != null
-        ? (iso._seconds ?? iso.seconds) * 1000
-        : iso
-      : iso;
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString();
-}
+import { formatDate } from '../lib/date.js';
 
 // Human-readable label for an audit action, plus the icon/accent it reads with.
 function describeAction(log) {
@@ -233,7 +221,7 @@ function DrawerBody({ uid, meUid, onChanged }) {
         }
       });
 
-    // Re-enabling restores access — harmless, so act immediately.
+    // Re-enabling restores access , harmless, so act immediately.
     if (!disabling) return doToggle();
 
     // Disabling locks the user out and ends their session on the next request.
@@ -283,7 +271,7 @@ function DrawerBody({ uid, meUid, onChanged }) {
         ) : (
           <>
             <div className="card !mb-0 !py-1">
-              <Row label="Name">{user.name || '—'}</Row>
+              <Row label="Name">{user.name || 'N/A'}</Row>
               <Row label="Username"><span className="font-mono">@{user.username}</span></Row>
               <Row label="Role">
                 <span className={`badge ${user.role === 'admin' ? 'badge-blue' : 'badge-gray'}`}>{user.role}</span>
@@ -291,12 +279,12 @@ function DrawerBody({ uid, meUid, onChanged }) {
               <Row label="Status">
                 <span className={`badge ${user.disabled ? 'badge-red' : 'badge-green'}`}>{user.disabled ? 'Disabled' : 'Active'}</span>
               </Row>
-              <Row label="Recovery email">{user.recoveryEmail ? <span className="break-all">{user.recoveryEmail}</span> : '—'}</Row>
-              <Row label="Created">{fmtDate(user.createdAt)}</Row>
+              <Row label="Recovery email">{user.recoveryEmail ? <span className="break-all">{user.recoveryEmail}</span> : 'N/A'}</Row>
+              <Row label="Created">{formatDate(user.createdAt)}</Row>
             </div>
 
             {isSelf ? (
-              <p className="text-muted text-xs mt-3 m-0">This is your own account — you can’t disable it.</p>
+              <p className="text-muted text-xs mt-3 m-0">This is your own account , you can’t disable it.</p>
             ) : (
               <div className="flex gap-2 flex-wrap mt-3">
                 <motion.button
@@ -323,11 +311,11 @@ function DrawerBody({ uid, meUid, onChanged }) {
           <Row label="Failed logins">{user.failedAttempts || 0}</Row>
           <Row label="Locked until">
             {user.lockedUntil && new Date(user.lockedUntil).getTime() > Date.now()
-              ? <span className="text-danger">{fmtDate(user.lockedUntil)}</span>
+              ? <span className="text-danger">{formatDate(user.lockedUntil)}</span>
               : 'Not locked'}
           </Row>
           <Row label="Terms accepted">
-            {user.termsAcceptedAt ? `${fmtDate(user.termsAcceptedAt)}${user.termsVersion ? ` (v${user.termsVersion})` : ''}` : '—'}
+            {user.termsAcceptedAt ? `${formatDate(user.termsAcceptedAt)}${user.termsVersion ? ` (v${user.termsVersion})` : ''}` : 'N/A'}
           </Row>
         </div>
       </div>
@@ -350,7 +338,7 @@ function DrawerBody({ uid, meUid, onChanged }) {
                     <div className="min-w-0 flex-1">
                       <p className="text-sm text-ink m-0">{text}</p>
                       <p className="text-xs text-muted m-0 mt-0.5">
-                        {log.actorUsername ? <span className="font-mono">@{log.actorUsername}</span> : 'system'} · {fmtDate(log.at)}
+                        {log.actorUsername ? <span className="font-mono">@{log.actorUsername}</span> : 'system'} · {formatDate(log.at)}
                       </p>
                     </div>
                   </li>

@@ -7,6 +7,7 @@ import { useNotifications, relativeTime } from '../lib/useNotifications.js';
 import { NavBadge } from './nav.jsx';
 import Spinner from './Spinner.jsx';
 import { tapProps } from './motion.jsx';
+import { formatDate } from '../lib/date.js';
 
 const PANEL_W = 330; // preferred width; shrinks to fit narrow viewports
 const MARGIN = 8; // min gap kept from every viewport edge
@@ -41,7 +42,7 @@ function placePanel(btn) {
 
 // Nav bell + dropdown panel for owner notifications (finder "I found this"
 // reports). Reused on desktop (top bar) and mobile (dashboard header). Opening the
-// panel does NOT mark everything read — the owner reads items individually (click
+// panel does NOT mark everything read , the owner reads items individually (click
 // through to the QR) or taps "Mark all read", so the badge stays honest.
 export default function NotificationBell({ align = 'right' }) {
   const { list, unread, loading, markRead, markAllRead } = useNotifications();
@@ -66,7 +67,7 @@ export default function NotificationBell({ align = 'right' }) {
     };
   }, [open, align]);
 
-  // Close on outside click or Esc — standard dropdown dismissal. The panel lives
+  // Close on outside click or Esc , standard dropdown dismissal. The panel lives
   // in a portal, so an outside click is one in neither the bell nor the panel.
   useEffect(() => {
     if (!open) return undefined;
@@ -172,7 +173,7 @@ export default function NotificationBell({ align = 'right' }) {
                         </span>
                         <span className="mt-1 flex items-center gap-2 text-[.72rem] text-muted-2">
                           <span className="font-mono font-semibold bg-surface border border-border rounded-xs px-1.5 py-0.5">{n.qrId}</span>
-                          <span title={n.createdAt || ''}>{relativeTime(n.createdAt)}</span>
+                          <span title={formatDate(n.createdAt)}>{relativeTime(n.createdAt)}</span>
                         </span>
                       </span>
                     </button>
@@ -183,7 +184,7 @@ export default function NotificationBell({ align = 'right' }) {
               {list.length > 0 && (
                 <div className="flex-none px-4 py-2.5 border-t border-border bg-surface/60">
                   <p className="text-[.7rem] text-muted-2 m-0 leading-snug">
-                    A report is a sighting from a finder — it doesn’t confirm the item was returned.
+                    A report is a sighting from a finder , it doesn’t confirm the item was returned.
                   </p>
                 </div>
               )}

@@ -6,7 +6,7 @@ import { validate } from '../middleware/validate.js';
 import { requireAuth } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 import { normalizeQrId, normalizeActivationSecret } from '../lib/ids.js';
-import { ITEM_STATUS, TEMPLATES, UPLOAD, RATE_LIMIT, TEXT_LIMITS } from '../lib/constants.js';
+import { ITEM_STATUS, TEMPLATES, UPLOAD, RATE_LIMIT, TEXT_LIMITS, ROLE } from '../lib/constants.js';
 import { assertAllowedImage } from '../lib/imageValidation.js';
 import { downloadImage } from '../lib/fetchRemoteImage.js';
 import { saveImage, deleteImage, keyFromLegacyUrl, storageMode } from '../config/storage.js';
@@ -31,6 +31,19 @@ router.use(rateLimit({ ...RATE_LIMIT.API, bucket: 'owner-api', keyBy: 'user' }))
 // per-QR counter wouldn't catch) and stops claim-request flooding of the admin queue.
 const activateLimiter = rateLimit({ ...RATE_LIMIT.ACTIVATE, bucket: 'activate', keyBy: 'user' });
 const claimLimiter = rateLimit({ ...RATE_LIMIT.CLAIM, bucket: 'claim', keyBy: 'user' });
+
+// Admins run inventory and approve user claim requests; they never acquire QR
+// ownership for themselves. The UI hides activation from admins; this is the
+// server-side backstop on the two ownership-acquisition routes (defense in depth).
+// 403 is deliberate here — unlike the activation-STATE failures below (which avoid
+// 401/403 so a mid-activation hiccup never looks like a dead session), this is a
+// role violation, and no legitimate admin flow ever hits these routes.
+function blockAdmin(req, res, next) {
+  if (req.user?.role === ROLE.ADMIN) {
+    return res.status(403).json({ error: 'Administrators cannot activate QR codes.', reason: 'ADMIN_FORBIDDEN' });
+  }
+  next();
+}
 
 // Buffer uploads in memory and hand the bytes to the storage adapter, which
 // decides where they live (disk in dev, Cloud Storage in prod). The mimetype
@@ -88,7 +101,7 @@ const activateSchema = z.object({
   qrId: z.string().min(1),
   secret: z.string().min(1, 'Enter the activation code printed with your product'),
 });
-router.post('/qr/activate', activateLimiter, validate(activateSchema), async (req, res, next) => {
+router.post('/qr/activate', blockAdmin, activateLimiter, validate(activateSchema), async (req, res, next) => {
   try {
     const qrId = normalizeQrId(req.body.qrId);
     if (!qrId) return res.status(400).json({ error: 'Invalid QR identifier' });
@@ -128,7 +141,7 @@ const claimSchema = z.object({
   qrId: z.string().min(1),
   note: z.string().trim().max(TEXT_LIMITS.CLAIM_NOTE).optional().default(''),
 });
-router.post('/qr/claim-request', claimLimiter, validate(claimSchema), async (req, res, next) => {
+router.post('/qr/claim-request', blockAdmin, claimLimiter, validate(claimSchema), async (req, res, next) => {
   try {
     const qrId = normalizeQrId(req.body.qrId);
     if (!qrId) return res.status(400).json({ error: 'Invalid QR identifier' });

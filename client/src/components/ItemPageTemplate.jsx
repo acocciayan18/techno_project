@@ -197,7 +197,7 @@ export default function ItemPageTemplate({ qrId, customization = {}, item = {}, 
 
 // Per-browser guard so a finder who already reported doesn't see the prompt again
 // (and can't casually re-fire it). The server de-dupes and rate-limits regardless
-// — this is the UX layer. localStorage can be unavailable (private mode); every
+// , this is the UX layer. localStorage can be unavailable (private mode); every
 // access is guarded so the page still works without it.
 const reportKey = (qrId) => `tagback_found_${qrId}`;
 function readReported(qrId) {
@@ -207,7 +207,7 @@ function writeReported(qrId) {
   try { localStorage.setItem(reportKey(qrId), '1'); } catch { /* ignore */ }
 }
 
-// "I found this item" — the finder-facing action on a LOST page. A tap opens a
+// "I found this item" , the finder-facing action on a LOST page. A tap opens a
 // confirmation that makes two things explicit before anything is sent: the owner
 // is notified, and a report does NOT confirm the item was returned. On confirm it
 // posts the report, then switches to a thank-you state that points the finder at
@@ -222,7 +222,7 @@ function FoundReport({ qrId, itemName, accent, hasContact }) {
       title: 'Report that you found this item?',
       description: (
         <>
-          This lets the owner know their item has been spotted — they’ll see it in
+          This lets the owner know their item has been spotted , they’ll see it in
           their TagBack dashboard. It <strong>does not</strong> confirm the item has
           been returned.
           {hasContact
@@ -240,7 +240,7 @@ function FoundReport({ qrId, itemName, accent, hasContact }) {
       await api.post(`/q/${qrId}/found`, {}, { auth: false });
       writeReported(qrId);
       setReported(true);
-      notify.success('Thanks — the owner has been notified.');
+      notify.success('Thanks , the owner has been notified.');
     } catch (err) {
       notify.error(err.message);
     } finally {
@@ -257,7 +257,7 @@ function FoundReport({ qrId, itemName, accent, hasContact }) {
             <p className="font-semibold text-ink m-0">Thanks for reporting this!</p>
             <p className="text-muted text-[.88rem] mt-1 mb-0">
               The owner has been notified in their dashboard. This doesn’t confirm the
-              item was returned —{' '}
+              item was returned ,{' '}
               {hasContact ? (
                 <>reach out using the contact details below to arrange getting it back.</>
               ) : (
@@ -279,7 +279,7 @@ function FoundReport({ qrId, itemName, accent, hasContact }) {
     <div className="rounded-sm border border-border bg-card shadow-brutal-sm px-5 py-4">
       <h2 className="font-display font-bold text-[1.1rem] m-0 break-words">Found this item?</h2>
       <p className="text-muted text-[.88rem] mt-1 mb-3.5">
-        Let the owner know it’s been spotted. Reporting notifies them — it doesn’t
+        Let the owner know it’s been spotted. Reporting notifies them , it doesn’t
         confirm the item was returned.
       </p>
       <motion.button

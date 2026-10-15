@@ -80,7 +80,7 @@ export default function AdminInventory() {
       setCopied(false);
       try {
         const { created, secrets } = await api.post('/admin/qr/generate', { count: Number(count) });
-        setNewSecrets(secrets); // one-time — these can never be retrieved again
+        setNewSecrets(secrets); // one-time , these can never be retrieved again
         await reload();
         notify.success(`Generated ${created.length} QR code${created.length === 1 ? '' : 's'} (${created[0]} … ${created[created.length - 1]}).`);
       } catch (e) {
@@ -98,7 +98,7 @@ export default function AdminInventory() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      notify.error('Could not copy to clipboard — use Download instead.');
+      notify.error('Could not copy to clipboard , use Download instead.');
     }
   }
 
@@ -128,14 +128,14 @@ export default function AdminInventory() {
       {loadError && <p className="status-msg status-error">{loadError}</p>}
 
       {/* One-time reveal of the new activation codes. They are stored hashed and
-          can never be shown again — the admin must save them now and pair each
+          can never be shown again , the admin must save them now and pair each
           with its product. */}
       {newSecrets && newSecrets.length > 0 && (
         <div className="card !mb-4 !border-warn">
           <div className="flex items-start gap-2.5 mb-3">
             <span className="flex-none w-9 h-9 grid place-items-center rounded-[10px] bg-warn-weak text-warn"><KeyRound size={18} strokeWidth={2.2} /></span>
             <div className="min-w-0">
-              <h3 className="m-0 flex items-center gap-2 text-base">Activation codes — shown once</h3>
+              <h3 className="m-0 flex items-center gap-2 text-base">Activation codes , shown once</h3>
               <p className="text-sm text-muted m-0 mt-0.5 flex items-start gap-1.5">
                 Save these now. They’re stored hashed and cannot be retrieved again. Print each code with its product (not in the QR itself).
               </p>
@@ -211,7 +211,7 @@ export default function AdminInventory() {
         ))}
       </div>
 
-      {/* Bulk-print action bar — appears once any QR is picked. */}
+      {/* Bulk-print action bar , appears once any QR is picked. */}
       {picked.size > 0 && (
         <div className="card !mb-4 flex items-center gap-3 flex-wrap !py-3">
           <span className="font-semibold text-sm">{picked.size} selected for printing</span>
@@ -267,11 +267,11 @@ export default function AdminInventory() {
                         ? `@${r.ownerUsername}`
                         : r.status === 'PENDING' && r.claimantUsername
                           ? <span className="text-warn">@{r.claimantUsername} <span className="text-muted-2">(requested)</span></span>
-                          : '—'}
+                          : 'N/A'}
                     </span>
                   </td>
-                  <td><span className="block max-w-[14rem] truncate" title={r.item?.name || undefined}>{r.item?.name || '—'}</span></td>
-                  <td>{r.item?.status || '—'}</td>
+                  <td><span className="block max-w-[14rem] truncate" title={r.item?.name || undefined}>{r.item?.name || 'N/A'}</span></td>
+                  <td>{r.item?.status || 'N/A'}</td>
                   <td onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end">
                       <motion.button className="btn btn-sm btn-ghost !px-2" onClick={() => setSelected(r.qrId)} aria-label={`Open ${r.qrId}`} {...tapProps}>

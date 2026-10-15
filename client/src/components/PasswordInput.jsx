@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Lock, Eye, EyeOff } from 'lucide-react';
 
 // Password field with a leading lock icon and a trailing show/hide toggle.
-// Purely presentational — the owning form keeps the value and change handler.
+// Purely presentational , the owning form keeps the value and change handler.
 export default function PasswordInput({
   value,
   onChange,

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { api } from './api.js';
 import { useResource, useDataStore } from '../store/dataStore.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { formatDate } from './date.js';
 
 const KEY = 'owner/notifications';
 // Background refresh cadence so the badge reflects new finder reports without a
@@ -10,7 +11,7 @@ const KEY = 'owner/notifications';
 const POLL_MS = 60 * 1000;
 
 // Owner notifications (finder "I found this" reports). Shared cache key so every
-// surface — the nav bell badge and any in-page panel — reads the same data and a
+// surface , the nav bell badge and any in-page panel , reads the same data and a
 // read/markAll in one place updates them all.
 export function useNotifications() {
   const { user } = useAuth();
@@ -83,5 +84,5 @@ export function relativeTime(iso) {
   if (hrs < 24) return `${hrs}h ago`;
   const days = Math.round(hrs / 24);
   if (days < 7) return `${days}d ago`;
-  return new Date(then).toLocaleDateString();
+  return formatDate(then);
 }

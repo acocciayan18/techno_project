@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 /* =====================================================================
-   TagBack — Tag UI Kit theme (clean, modern, polished).
+   TagBack , Tag UI Kit theme (clean, modern, polished).
    Tokens are CSS variables (R G B channel triplets) so the whole palette
    flips for dark mode; Tailwind maps them in tailwind.config.js. This file
    holds the token values, base element defaults, and the repeated UI
@@ -24,12 +24,12 @@
   /* lines */
   --border: 227 231 238;
   --border-strong: 207 213 224;
-  /* accent — one cobalt carrying every action */
+  /* accent , one cobalt carrying every action */
   --primary: 52 87 213;
   --primary-ink: 255 255 255;
   --primary-hover: 42 71 182;
   --accent-weak: 233 237 252;
-  /* status hues — kept apart from the accent */
+  /* status hues , kept apart from the accent */
   --success: 21 146 74;
   --success-weak: 228 245 234;
   --danger: 211 58 58;
@@ -44,7 +44,7 @@
   --sh-lg: 0 18px 44px -14px rgba(16, 24, 40, .22), 0 4px 12px -4px rgba(16, 24, 40, .08);
 }
 
-/* Dark palette — applied when the user picks Dark (data-theme="dark")
+/* Dark palette , applied when the user picks Dark (data-theme="dark")
    or via System preference when no explicit light choice is set. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -137,16 +137,25 @@
   textarea { min-height: 100px; resize: vertical; }
   /* Mobile Safari/Chrome auto-zoom on focus when a field's font-size is < 16px.
      Fields inherit the 15px body size, so bump them to 16px on small screens
-     only — desktop keeps the 15px scale. */
+     only , desktop keeps the 15px scale. */
   @media (max-width: 767px) {
     input, textarea, select { font-size: 16px; }
   }
   input::placeholder, textarea::placeholder { @apply text-muted-2; }
+  input[type="search"] {
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  input[type="search"]::-webkit-search-cancel-button {
+    appearance: none;
+    -webkit-appearance: none;
+    display: none;
+  }
   input:focus, textarea:focus, select:focus {
     @apply outline-none border-primary;
     box-shadow: 0 0 0 3px rgb(var(--accent-weak));
   }
-  /* Invalid field state — red frame + matching focus ring. */
+  /* Invalid field state , red frame + matching focus ring. */
   input[aria-invalid="true"], textarea[aria-invalid="true"], select[aria-invalid="true"] {
     @apply border-danger;
   }
@@ -384,7 +393,7 @@
     font-size: .72rem;
     padding: .2rem .65rem;
     letter-spacing: .02em;
-    /* Never let a long label blow past its container — cap and ellipsize. */
+    /* Never let a long label blow past its container , cap and ellipsize. */
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;

@@ -12,16 +12,11 @@ import Spinner from './Spinner.jsx';
 import { Skeleton } from './Skeleton.jsx';
 import QrPrintDialog from './QrPrintDialog.jsx';
 import { notify } from '../lib/toast.jsx';
+import { formatDate } from '../lib/date.js';
 
 const QR_BADGE = { AVAILABLE: 'badge-green', PENDING: 'badge-amber', ACTIVATED: 'badge-blue', DISABLED: 'badge-gray' };
 const CLAIM_BADGE = { PENDING: 'badge-amber', APPROVED: 'badge-green', REJECTED: 'badge-red' };
 const ITEM_BADGE = { ACTIVE: 'badge-green', LOST: 'badge-red', RECOVERED: 'badge-blue' };
-
-function fmtDate(iso) {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString();
-}
 
 function Row({ label, children }) {
   return (
@@ -73,7 +68,7 @@ function DrawerBody({ qrId, onChanged, onClose }) {
         }
       });
 
-    // Re-enabling a QR is non-destructive — act immediately, no prompt.
+    // Re-enabling a QR is non-destructive , act immediately, no prompt.
     if (!disabling) return doToggle();
 
     // Disabling kills scans of the printed code, so confirm first.
@@ -81,7 +76,7 @@ function DrawerBody({ qrId, onChanged, onClose }) {
       title: `Disable ${qrId}?`,
       description:
         'Scanning the printed code stops working and its public page goes dark until you ' +
-        'enable it again. The record and its item are kept — this is reversible.',
+        'enable it again. The record and its item are kept , this is reversible.',
       confirmLabel: 'Disable QR',
       busyLabel: 'Disabling…',
       variant: 'warning',
@@ -90,8 +85,8 @@ function DrawerBody({ qrId, onChanged, onClose }) {
     });
   }
 
-  function askDeleteQr() {
-    return confirm({
+  async function askDeleteQr() {
+    const confirmed = await confirm({
       title: `Delete ${qrId}?`,
       description: (
         <>
@@ -110,13 +105,13 @@ function DrawerBody({ qrId, onChanged, onClose }) {
           useDataStore.getState().fetch('admin/claims', () => api.get('/admin/claims').then((r) => r.claims));
           onChanged?.();
           notify.success(`${qrId} deleted.`);
-          onClose?.();
         } catch (e) {
           notify.error(e.message);
           throw e; // keep the modal open on failure
         }
       },
     });
+    if (confirmed) onClose?.();
   }
 
   function reviewClaim(decision) {
@@ -127,7 +122,7 @@ function DrawerBody({ qrId, onChanged, onClose }) {
         // in sync no matter where the review was triggered from. (Refetch, not just
         // invalidate: the badge's hook won't re-request on its own.)
         useDataStore.getState().fetch('admin/claims', () => api.get('/admin/claims').then((r) => r.claims));
-        notify.success(decision === 'approve' ? `${qrId} approved — ownership transferred.` : `${qrId} rejected — released to stock.`);
+        notify.success(decision === 'approve' ? `${qrId} approved , ownership transferred.` : `${qrId} rejected , released to stock.`);
       } catch (e) {
         notify.error(e.message);
       }
@@ -182,8 +177,8 @@ function DrawerBody({ qrId, onChanged, onClose }) {
           <Row label="Status">
             <span className={`badge ${QR_BADGE[qr.status] || 'badge-gray'}`}>{qr.status}</span>
           </Row>
-          <Row label="Created">{fmtDate(qr.createdAt)}</Row>
-          <Row label="Activated">{fmtDate(qr.activatedAt)}</Row>
+          <Row label="Created">{formatDate(qr.createdAt)}</Row>
+          <Row label="Activated">{formatDate(qr.activatedAt)}</Row>
         </div>
         <div className="flex gap-2 flex-wrap mt-3">
           <motion.button
@@ -217,8 +212,8 @@ function DrawerBody({ qrId, onChanged, onClose }) {
               {claim.claimantUsername && <Row label="Requested by"><span className="font-mono">@{claim.claimantUsername}</span></Row>}
               {claim.method && <Row label="Method">{claim.method}</Row>}
               {claim.note && <Row label="Note">{claim.note}</Row>}
-              <Row label="Requested">{fmtDate(claim.requestedAt)}</Row>
-              {claim.decidedAt && <Row label="Decided">{fmtDate(claim.decidedAt)}</Row>}
+              <Row label="Requested">{formatDate(claim.requestedAt)}</Row>
+              {claim.decidedAt && <Row label="Decided">{formatDate(claim.decidedAt)}</Row>}
             </>
           ) : (
             <p className="text-muted text-sm py-2 m-0">
@@ -247,7 +242,7 @@ function DrawerBody({ qrId, onChanged, onClose }) {
           {owner ? (
             <>
               <Row label="Username"><span className="font-mono">@{owner.username}</span></Row>
-              <Row label="Name">{owner.name || '—'}</Row>
+              <Row label="Name">{owner.name || 'N/A'}</Row>
               <Row label="Account">
                 <span className={`badge ${owner.disabled ? 'badge-red' : 'badge-green'}`}>
                   {owner.disabled ? 'Disabled' : 'Active'}
@@ -255,12 +250,12 @@ function DrawerBody({ qrId, onChanged, onClose }) {
               </Row>
             </>
           ) : (
-            <p className="text-muted text-sm py-2 m-0">Not activated — no owner assigned.</p>
+            <p className="text-muted text-sm py-2 m-0">Not activated , no owner assigned.</p>
           )}
         </div>
       </div>
 
-      {/* Item — read-only. The owner manages item details and lost/found status. */}
+      {/* Item , read-only. The owner manages item details and lost/found status. */}
       <div>
         <h3 className="text-sm uppercase tracking-wide text-muted mb-1">Item</h3>
 
@@ -270,13 +265,13 @@ function DrawerBody({ qrId, onChanged, onClose }) {
           </div>
         ) : (
           <div className="card !mb-0 !py-1">
-            <Row label="Name">{item.name || '—'}</Row>
-            <Row label="Description">{item.description || '—'}</Row>
-            <Row label="Recovery">{item.recoveryInstructions || '—'}</Row>
+            <Row label="Name">{item.name || 'N/A'}</Row>
+            <Row label="Description">{item.description || 'N/A'}</Row>
+            <Row label="Recovery">{item.recoveryInstructions || 'N/A'}</Row>
             <Row label="Item status">
               <span className={`badge ${ITEM_BADGE[item.status] || 'badge-gray'}`}>{item.status}</span>
             </Row>
-            <Row label="Updated">{fmtDate(item.updatedAt)}</Row>
+            <Row label="Updated">{formatDate(item.updatedAt)}</Row>
           </div>
         )}
       </div>

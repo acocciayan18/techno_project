@@ -1,7 +1,7 @@
 // Live character counter for a text field. Sits under an input/textarea and
 // shifts to the warn colour as the value nears its limit, danger if it somehow
 // exceeds it (maxLength normally prevents that, but pasted/controlled values can
-// momentarily overshoot). Purely presentational — the field itself owns the cap.
+// momentarily overshoot). Purely presentational , the field itself owns the cap.
 export default function CharCount({ value = '', max, className = '' }) {
   const len = [...String(value ?? '')].length;
   const over = len > max;

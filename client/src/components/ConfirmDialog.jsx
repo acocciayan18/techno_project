@@ -22,7 +22,7 @@ import Spinner from './Spinner.jsx';
 //  - Pass `onConfirm`: the modal runs it, shows a spinner on the Confirm button,
 //    blocks a second submit, stays open if it throws (so the caller's toast can
 //    report the error and the user can retry), and closes + resolves `true` on
-//    success. This is the recommended path — duplicate-submission guarding and
+//    success. This is the recommended path , duplicate-submission guarding and
 //    the busy state are handled here, consistently, for every caller.
 //  - Omit `onConfirm`: the promise resolves `true` when the user confirms and
 //    `false` when they cancel, leaving the work to the caller.
@@ -103,7 +103,9 @@ export function ConfirmProvider({ children }) {
     const t = setTimeout(() => focusTarget?.focus(), 0);
     return () => {
       window.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prevOverflow;
+      if (document.body.style.overflow === 'hidden') {
+        document.body.style.overflow = prevOverflow;
+      }
       clearTimeout(t);
     };
   }, [req, cancel]);

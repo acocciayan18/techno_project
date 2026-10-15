@@ -146,10 +146,10 @@ export default function ItemManage() {
               value={form.recoveryInstructions || ''}
               onChange={setItem('recoveryInstructions')}
               maxLength={LIMITS.recoveryInstructions}
-              placeholder="Where or how a finder should return it — e.g. drop at the front desk of 123 Main St, or call to arrange pickup."
+              placeholder="Where or how a finder should return it , e.g. drop at the front desk of 123 Main St, or call to arrange pickup."
             />
             <CharCount value={form.recoveryInstructions || ''} max={LIMITS.recoveryInstructions} />
-            <p className="text-muted text-[.82rem] mt-1">Shown to finders only when the item is lost (or if “Always show information” is on). Don’t put serial numbers or secret marks here — this page is public.</p>
+            <p className="text-muted text-[.82rem] mt-1">Shown to finders only when the item is lost (or if “Always show information” is on). Don’t put serial numbers or secret marks here , this page is public.</p>
           </label>
           <div className="field-label">Photo (optional)
             <div className="mt-1">
@@ -213,7 +213,7 @@ export default function ItemManage() {
               <p className="font-semibold">Always show information</p>
               <p className="text-muted text-[.85rem]">
                 On: anyone who scans sees the item details and the contact fields you
-                switched on below — even when the item is not reported lost.
+                switched on below , even when the item is not reported lost.
                 Off: those details stay hidden until you mark the item lost.
                 Only fields you’ve made public are ever shown.
               </p>
