@@ -1,12 +1,22 @@
 import QRCode from 'qrcode';
 
-// Public origin that physical QR codes (and other outbound links) point to.
-// Canonical server env var is PUBLIC_BASE_URL (see server/.env.example); set it to
-// the deployed domain in production. VITE_API_BASE_URL is a client-only Vite var
-// and is kept here only as a legacy fallback. Localhost is the last-resort dev
-// default — without PUBLIC_BASE_URL set, deployed QR codes would point at it.
+// Canonical production origin every physical QR code must resolve to. Printed
+// codes are permanent, so they can NEVER encode a localhost/dev origin — that
+// would be unreachable once the tag leaves the machine that made it.
+export const PRODUCTION_QR_ORIGIN = 'https://tagback-app.vercel.app';
+
+const LOCAL_ORIGIN_RE = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:|\/|$)/i;
+
+// Public origin that physical QR codes point to. PUBLIC_BASE_URL (see
+// server/.env.example) overrides it, but ONLY when set to a real remote origin:
+// a localhost/dev value (or nothing) falls back to the production domain so that
+// no generated QR — admin inventory, printing, downloads, the /url endpoint —
+// can ever bake in an unreachable link. The legacy VITE_API_BASE_URL fallback is
+// deliberately NOT consulted here (it is a client dev value, often localhost).
 export function publicBaseUrl() {
-  return (process.env.PUBLIC_BASE_URL || process.env.VITE_API_BASE_URL || 'http://localhost:5173').replace(/\/+$/, '');
+  const configured = (process.env.PUBLIC_BASE_URL || '').trim().replace(/\/+$/, '');
+  if (configured && !LOCAL_ORIGIN_RE.test(configured)) return configured;
+  return PRODUCTION_QR_ORIGIN;
 }
 
 let warnedLocalhost = false;
