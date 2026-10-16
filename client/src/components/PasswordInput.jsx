@@ -11,6 +11,7 @@ export default function PasswordInput({
   required = false,
   placeholder,
   id,
+  className,
 }) {
   const [show, setShow] = useState(false);
   return (
@@ -25,6 +26,7 @@ export default function PasswordInput({
         placeholder={placeholder}
         required={required}
         aria-invalid={invalid || undefined}
+        className={className}
       />
       <button
         type="button"
