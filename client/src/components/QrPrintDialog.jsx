@@ -14,11 +14,18 @@ const PAPERS = {
 };
 const PX_PER_MM = 96 / 25.4; // CSS reference pixels per millimetre
 const svgUrl = (qrId) => apiUrl(`/api/qr/${qrId}/image.svg`); // vector = crisp at any print size
+const CARD_WIDTH = { min: 10, max: 200, fallback: 40 };
+const CARD_HEIGHT = { min: 10, max: 300, fallback: 50 };
 
 const clampNum = (v, min, max) => {
   const n = Number(v);
   if (!Number.isFinite(n)) return min;
   return Math.min(max, Math.max(min, n));
+};
+
+const validDimension = (value, { min, max }) => {
+  const n = Number(value);
+  return value !== '' && Number.isFinite(n) && n >= min && n <= max ? n : null;
 };
 
 // Given the settings, work out how the cards tile across one sheet and how the
@@ -151,7 +158,14 @@ export default function QrPrintDialog({ qrIds, onClose }) {
   });
   const set = (k, v) => setS((prev) => ({ ...prev, [k]: v }));
 
-  const L = useMemo(() => computeLayout(s), [s]);
+  const cardW = validDimension(s.cardW, CARD_WIDTH);
+  const cardH = validDimension(s.cardH, CARD_HEIGHT);
+  const hasInvalidDimensions = cardW === null || cardH === null;
+  const layoutSettings = useMemo(
+    () => ({ ...s, cardW: cardW ?? CARD_WIDTH.fallback, cardH: cardH ?? CARD_HEIGHT.fallback }),
+    [s, cardW, cardH],
+  );
+  const L = useMemo(() => computeLayout(layoutSettings), [layoutSettings]);
   const pageCount = L.perPage > 0 ? Math.ceil(qrIds.length / L.perPage) : 0;
 
   // Preload every unique QR svg so the browser's print pass draws from cache
@@ -181,7 +195,10 @@ export default function QrPrintDialog({ qrIds, onClose }) {
     if (!el) return;
     const measure = () => {
       const w = el.clientWidth;
-      setScale(Math.min(0.9, w / (L.pw * PX_PER_MM)));
+      const fitScale = w / (L.pw * PX_PER_MM);
+      // Keep QR modules readable on phones. The preview can scroll horizontally
+      // when the readable sheet is wider than the viewport.
+      setScale(Math.min(0.9, Math.max(w < 768 ? 0.48 : 0, fitScale)));
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -220,7 +237,7 @@ export default function QrPrintDialog({ qrIds, onClose }) {
 
       {/* Off-screen real-size render used only by the print pass. */}
       <div id="qr-print-root" aria-hidden="true" style={{ position: 'fixed', left: '-100000px', top: 0 }}>
-        {!tooBig && <Sheets ids={qrIds} s={s} L={L} />}
+        {!tooBig && <Sheets ids={qrIds} s={layoutSettings} L={L} />}
       </div>
 
       <AnimatePresence>
@@ -266,12 +283,16 @@ export default function QrPrintDialog({ qrIds, onClose }) {
                   </select>
                 </Field>
                 <Field label="Card width" hint="mm">
-                  <input type="number" min="10" max="200" value={s.cardW}
-                    onChange={(e) => set('cardW', clampNum(e.target.value, 10, 200))} className="!mt-0" />
+                  <input type="number" min={CARD_WIDTH.min} max={CARD_WIDTH.max} step="any" value={s.cardW}
+                    aria-invalid={cardW === null}
+                    onChange={(e) => set('cardW', e.target.value)} className="!mt-0" />
+                  {cardW === null && <span className="text-xs text-danger font-normal">Enter a number from {CARD_WIDTH.min} to {CARD_WIDTH.max} mm.</span>}
                 </Field>
                 <Field label="Card height" hint="mm">
-                  <input type="number" min="10" max="300" value={s.cardH}
-                    onChange={(e) => set('cardH', clampNum(e.target.value, 10, 300))} className="!mt-0" />
+                  <input type="number" min={CARD_HEIGHT.min} max={CARD_HEIGHT.max} step="any" value={s.cardH}
+                    aria-invalid={cardH === null}
+                    onChange={(e) => set('cardH', e.target.value)} className="!mt-0" />
+                  {cardH === null && <span className="text-xs text-danger font-normal">Enter a number from {CARD_HEIGHT.min} to {CARD_HEIGHT.max} mm.</span>}
                 </Field>
                 <Field label="Page margin" hint="mm">
                   <input type="number" min="0" max="40" value={s.margin}
@@ -314,20 +335,20 @@ export default function QrPrintDialog({ qrIds, onClose }) {
             </div>
 
             {/* Live preview */}
-            <div ref={previewRef} className="flex-1 min-h-0 overflow-y-auto bg-surface p-5 flex flex-col items-center gap-5">
+            <div ref={previewRef} className="flex-1 min-h-0 overflow-auto bg-surface p-5 flex flex-col items-start md:items-center gap-5">
               {tooBig ? (
                 <p className="text-muted text-sm m-auto">Nothing to preview , adjust the card size.</p>
               ) : (
                 Array.from({ length: pageCount }).map((_, i) => {
                   const pageIds = qrIds.slice(i * L.perPage, (i + 1) * L.perPage);
                   return (
-                    <div key={i} className="flex flex-col items-center gap-1.5">
+                    <div key={i} className="flex flex-col items-center gap-1.5 mx-auto md:mx-0">
                       <div
                         className="relative shadow-brutal-sm border border-border"
                         style={{ width: pageW * scale, height: pageH * scale }}
                       >
                         <div style={{ position: 'absolute', top: 0, left: 0, width: pageW, height: pageH, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
-                          <SheetPage ids={pageIds} s={s} L={L} isLast />
+                          <SheetPage ids={pageIds} s={layoutSettings} L={L} isLast />
                         </div>
                       </div>
                       <span className="text-xs text-muted-2">Page {i + 1} of {pageCount}</span>
@@ -347,7 +368,7 @@ export default function QrPrintDialog({ qrIds, onClose }) {
               <motion.button
                 className="btn btn-primary"
                 onClick={() => window.print()}
-                disabled={tooBig || !ready || qrIds.length === 0}
+                disabled={tooBig || hasInvalidDimensions || !ready || qrIds.length === 0}
                 {...tapProps}
               >
                 {ready ? <Printer size={18} strokeWidth={2.5} /> : <Spinner size={18} />}

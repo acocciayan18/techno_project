@@ -28,7 +28,6 @@ import AdminItems from './pages/admin/AdminItems.jsx';
 import More from './pages/More.jsx';
 import Requests from './pages/Requests.jsx';
 import Help from './pages/Help.jsx';
-import AccountSecurity from './pages/AccountSecurity.jsx';
 import VerifyEmail from './pages/VerifyEmail.jsx';
 
 const MotionNavLink = motion.create(NavLink);
@@ -273,7 +272,6 @@ export default function App() {
         {/* Legacy customize link folds into the unified manage page. */}
         <Route path="/qr/:qrId/customize" element={<Navigate to="../item" replace />} />
         <Route path="/more" element={<ProtectedRoute><More /></ProtectedRoute>} />
-        <Route path="/account" element={<ProtectedRoute><AccountSecurity /></ProtectedRoute>} />
         <Route path="/help" element={<ProtectedRoute><Help /></ProtectedRoute>} />
         {/* User's own activation-request tracker. */}
         <Route path="/my-requests" element={<ProtectedRoute><Requests /></ProtectedRoute>} />

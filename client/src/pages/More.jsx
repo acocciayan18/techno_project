@@ -1,6 +1,6 @@
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ChevronRight, LogOut, FileText, ShieldCheck, ArrowLeft, Settings } from 'lucide-react';
+import { ChevronRight, LogOut, FileText, ShieldCheck, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useConfirm } from '../components/ConfirmDialog.jsx';
 import { Icon, useNavItems, usePendingRequests, NavBadge, PRIMARY_COUNT } from '../components/nav.jsx';
@@ -81,15 +81,6 @@ export default function More() {
       <h3 className="font-display text-muted text-[.74rem] font-semibold uppercase tracking-wide mt-5 mb-2.5">Appearance</h3>
       <nav className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[.6rem]">
         <ThemeToggle variant="row" />
-      </nav>
-
-      <h3 className="font-display text-muted text-[.74rem] font-semibold uppercase tracking-wide mt-5 mb-2.5">Account</h3>
-      <nav className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[.6rem]">
-        <Link to="/account" className={rowClass}>
-          <span className="flex-none w-10 h-10 grid place-items-center bg-accent-weak text-primary rounded-sm"><Settings size={19} /></span>
-          <span className="flex flex-col leading-tight flex-1 min-w-0"><strong>Account security</strong><small className="font-medium text-muted text-[.8rem]">Password and active sessions</small></span>
-          <ChevronRight className="text-muted" size={22} aria-hidden="true" />
-        </Link>
       </nav>
 
       <h3 className="font-display text-muted text-[.74rem] font-semibold uppercase tracking-wide mt-5 mb-2.5">Legal</h3>
