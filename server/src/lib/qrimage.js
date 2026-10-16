@@ -53,15 +53,23 @@ export function publicUrlFor(qrId) {
   return `${publicBaseUrl()}/q/${qrId}`;
 }
 
-// The SHORTEST URL that still resolves, used only as the scannable image payload.
-// The "QR-" prefix is cosmetic — the server's normalizeQrId re-adds it — so
-// dropping it trims 3 bytes from the encoded data. Fewer bytes can shrink the
-// symbol by a whole QR version, yielding fewer, larger modules that stay crisp
-// and scannable at tiny print sizes (e.g. 15×15 mm). QR IDs are unchanged, and
-// older codes that still encode the full "/q/QR-…" form keep working.
+// The most compact URL that still resolves, used only as the scannable image
+// payload. Two tricks shrink the symbol without touching the QR ID:
+//
+//  1. Drop the cosmetic "QR-" prefix (normalizeQrId re-adds it) — 3 chars fewer.
+//  2. UPPERCASE the whole URL. Every character here (A–Z 0–9 : / - .) is in the
+//     QR *alphanumeric* charset, so the encoder uses alphanumeric mode (~1.4×
+//     denser than byte mode) instead of being forced into byte mode by the
+//     lowercase in "https"/the domain. For this domain that drops the symbol a
+//     whole version — v3 (29×29) → v2 (25×25) — so each module is ~35% larger at
+//     15×15 mm. Case is safe to change: the scheme and host are case-insensitive
+//     (RFC 3986 / DNS), the SPA router matches the "/Q/:id" path case-insensitively
+//     and then normalizeQrId re-canonicalises the id to "QR-…".
+//
+// Existing codes that encode the old mixed-case "/q/QR-…" form keep resolving.
 export function qrPayloadUrl(qrId) {
   const core = String(qrId).replace(/^QR-/i, '');
-  return `${publicBaseUrl()}/q/${core}`;
+  return `${publicBaseUrl()}/q/${core}`.toUpperCase();
 }
 
 // Shared encoder options tuned for small physical print:
